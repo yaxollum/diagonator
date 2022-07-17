@@ -1,4 +1,5 @@
 #include <X11/Xlib.h>
+#include <X11/extensions/Xcomposite.h>
 #include <iostream>
 
 int main() {
@@ -9,6 +10,10 @@ int main() {
                  "correctly.\n";
     return 1;
   }
-  std::cout << "Display is: " << display << "\n";
+  int default_screen = XDefaultScreen(display);
+  int root_window = XRootWindow(display, default_screen);
+  std::cout << "Root is: " << root_window << '\n';
+  std::cout << "Window is: " << XCompositeGetOverlayWindow(display, root_window)
+            << "\n";
   XCloseDisplay(display);
 }
