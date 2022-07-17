@@ -1,2 +1,2 @@
 all:
-	g++ -o diagonator main.cc -lX11 -lXcomposite
+	g++ -o diagonator main.cc -lX11 -lXcomposite -lXfixes
