@@ -1828,6 +1828,21 @@ static Bool register_cm(Display *dpy) {
   return True;
 }
 
+void draw_diagonals(Display *dpy, int scr, Window window) {
+  unsigned long mask = 0;
+  XGCValues values;
+  values.foreground = XBlackPixel(dpy, scr);
+  mask |= GCForeground;
+
+  values.line_width = 10;
+  mask |= GCLineWidth;
+
+  GC gc = XCreateGC(dpy, window, mask, &values);
+  XDrawLine(dpy, window, gc, 100, 100, 600, 600);
+  XFlush(dpy);
+  XFreeGC(dpy, gc);
+}
+
 int main(int argc, char **argv) {
   Display *dpy;
   XEvent ev;
@@ -1918,6 +1933,13 @@ int main(int argc, char **argv) {
   scr = DefaultScreen(dpy);
   root = RootWindow(dpy, scr);
 
+  Window overlay_window = XCompositeGetOverlayWindow(dpy, root);
+  // pass input through overlay window
+  XserverRegion overlay_region = XFixesCreateRegion(dpy, NULL, 0);
+  XFixesSetWindowShapeRegion(dpy, overlay_window, ShapeInput, 0, 0,
+                             overlay_region);
+  XFixesDestroyRegion(dpy, overlay_region);
+
   if (!XRenderQueryExtension(dpy, &render_event, &render_error)) {
     fprintf(stderr, "No render extension\n");
     exit(1);
@@ -1995,6 +2017,9 @@ int main(int argc, char **argv) {
     XFree(children);
   }
   XUngrabServer(dpy);
+
+  draw_diagonals(dpy, scr, overlay_window);
+
   ufd.fd = ConnectionNumber(dpy);
   ufd.events = POLLIN;
   if (!autoRedirect)
