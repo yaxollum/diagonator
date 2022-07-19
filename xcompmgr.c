@@ -1503,7 +1503,7 @@ dump_wins (void)
 static void damage_win(Display *dpy, XDamageNotifyEvent *de) {
   win *w = find_win(dpy, de->drawable);
 
-  if (!w)
+  if (!w || w->id == 106)
     return;
 #if CAN_DO_USABLE
   if (!w->usable) {
@@ -1574,7 +1574,7 @@ static const char *shape_kind(int kind) {
 static void shape_win(Display *dpy, XShapeEvent *se) {
   win *w = find_win(dpy, se->window);
 
-  if (!w)
+  if (!w || w->id == 106)
     return;
 
   if (se->kind == ShapeClip || se->kind == ShapeBounding) {
@@ -1610,6 +1610,7 @@ static void shape_win(Display *dpy, XShapeEvent *se) {
     XFixesDestroyRegion(dpy, region1);
 
     /* ask for repaint of the old and new region */
+
     paint_all(dpy, region0);
   }
 }
@@ -2021,9 +2022,9 @@ int main(int argc, char **argv) {
   draw_diagonals(dpy, scr, overlay_window);
 
   ufd.fd = ConnectionNumber(dpy);
-  ufd.events = POLLIN;
-  if (!autoRedirect)
-    paint_all(dpy, None);
+  ufd.events = POLLIN; /*
+   if (!autoRedirect)
+     paint_all(dpy, None);*/
   for (;;) {
     /*	dump_wins (); */
     do {
@@ -2132,6 +2133,7 @@ int main(int argc, char **argv) {
           }
           break;
         default:
+          break;
           if (ev.type == damage_event + XDamageNotify) {
             damage_win(dpy, (XDamageNotifyEvent *)&ev);
           } else if (ev.type == xshape_event + ShapeNotify) {
