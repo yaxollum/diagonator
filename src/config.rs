@@ -1,12 +1,14 @@
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::fmt::Display;
 use std::fs;
 use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DiagonatorConfig {
-    diagonator_path: String,
-    diagonator_args: Vec<String>,
+    pub diagonator_path: String,
+    pub diagonator_args: Vec<String>,
+    pub socket_path: String,
 }
 
 impl Default for DiagonatorConfig {
@@ -18,9 +20,13 @@ impl Default for DiagonatorConfig {
             }
             None => String::new(),
         };
+        let mut socket_path = env::temp_dir();
+        socket_path.push("diagonator-server.sock");
+        let socket_path = socket_path.to_string_lossy().to_string();
         Self {
             diagonator_path,
             diagonator_args: Vec::new(),
+            socket_path,
         }
     }
 }

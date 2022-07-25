@@ -1,11 +1,15 @@
 mod config;
+mod server;
 
 use config::load_config;
+use server::launch_server;
 
 fn main() {
     match load_config() {
         Ok(config) => {
-            eprintln!("Loaded config {:?}", config);
+            if let Err(err) = launch_server(config) {
+                eprintln!("Server failed with error: {}", err);
+            }
         }
         Err(err) => {
             eprintln!("Encountered error when loading config: {}", err);
