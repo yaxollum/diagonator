@@ -36,5 +36,16 @@ pub fn launch_server(config: DiagonatorConfig) -> Result<(), ServerError> {
     }
     let listener = UnixListener::bind(&config.socket_path)
         .map_err(|err| ServerError::SocketListenError(config.socket_path.clone(), err))?;
+    eprintln!("Listening for connections.");
+    for stream in listener.incoming() {
+        match stream {
+            Ok(stream) => {
+                eprintln!("Incoming connection received!");
+            }
+            Err(err) => {
+                eprintln!("Incoming connection failed with error '{}'", err);
+            }
+        }
+    }
     Ok(())
 }
