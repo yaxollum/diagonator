@@ -1,11 +1,14 @@
 use crate::config::DiagonatorConfig;
 use crate::time::DiagonatorDate;
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::fs;
 use std::io;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::io::Write;
 use std::os::unix::net::UnixListener;
+use std::os::unix::net::UnixStream;
 
 pub enum ServerError {
     SocketListenError(String, io::Error),
@@ -30,7 +33,9 @@ impl Display for ServerError {
     }
 }
 
-enum Command {
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(tag = "type")]
+enum Request {
     StartSession,
     EndSession,
     GetInfo,
@@ -38,8 +43,12 @@ enum Command {
     ListenForInfoChange,
 }
 
-struct SimpleResponse {
-    error_msg: String,
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(tag = "type")]
+enum Response {
+    Success,
+    Error(String),
+    Info(CurrentInfo),
 }
 
 struct EventInfo {
@@ -54,22 +63,57 @@ struct RequirementInfo {
     event_id: u64,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 enum CurrentState {
-    Active,
-    Locked,
+    Active(u64),
+    Locked(u64),
     Unlockable,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 struct CurrentInfo {
-    incomplete_requirements: Vec<RequirementInfo>,
-    events: Vec<EventInfo>,
+    // incomplete_requirements: Vec<RequirementInfo>,
+    // events: Vec<EventInfo>,
     state: CurrentState,
-    state_end_time: u64,
+}
+
+impl CurrentInfo {
+    fn new() -> Self {
+        Self {
+            state: CurrentState::Unlockable,
+        }
+    }
 }
 
 struct DiagonatorManager {
     current_info: CurrentInfo,
-    current_date: DiagonatorDate,
+    // current_date: DiagonatorDate,
+    work_period_duration: u64,
+    break_duration: u64,
+}
+
+impl DiagonatorManager {
+    fn start_session(&mut self) -> Response {
+        Response::Success
+    }
+    fn end_session(&mut self) -> Response {
+        Response::Success
+    }
+    fn get_info(&mut self) -> Response {
+        Response::Success
+    }
+    fn complete_requirement(&mut self, requirement_id: u64) -> Response {
+        Response::Success
+    }
+}
+
+fn send_response(stream: &mut UnixStream, response: Response) {
+    writeln!(
+        stream,
+        "{}",
+        serde_json::to_string(&response).expect("Failed to serialize response")
+    )
+    .expect("Failed to send response to client");
 }
 
 pub fn launch_server(config: DiagonatorConfig) -> Result<(), ServerError> {
@@ -81,17 +125,40 @@ pub fn launch_server(config: DiagonatorConfig) -> Result<(), ServerError> {
     }
     let listener = UnixListener::bind(&config.socket_path)
         .map_err(|err| ServerError::SocketListenError(config.socket_path.clone(), err))?;
+    let mut manager = DiagonatorManager {
+        current_info: CurrentInfo::new(),
+        work_period_duration: config.work_period_minutes * 60,
+        break_duration: config.break_minutes * 60,
+    };
     eprintln!("Listening for connections.");
     for stream in listener.incoming() {
         match stream {
-            Ok(stream) => {
+            Ok(mut stream) => {
                 eprintln!("Incoming connection received!");
-                let mut stream = BufReader::new(stream);
+                let mut buf_stream = BufReader::new(&stream);
                 let mut data = String::new();
-                stream
+                buf_stream
                     .read_line(&mut data)
                     .expect("Failed to read client request from socket");
-                eprintln!("Read data: {}", data);
+                match serde_json::from_str::<Request>(&data) {
+                    Ok(request) => {
+                        let response = match request {
+                            Request::StartSession => manager.start_session(),
+                            Request::EndSession => manager.end_session(),
+                            Request::GetInfo => manager.get_info(),
+                            Request::CompleteRequirement { id } => manager.complete_requirement(id),
+                            Request::ListenForInfoChange => Response::Success,
+                        };
+                        send_response(&mut stream, response);
+                        if request == Request::ListenForInfoChange {
+                            // TODO: wait to be notified here
+                        }
+                    }
+                    Err(err) => {
+                        send_response(&mut stream, Response::Error("Invalid request".to_owned()));
+                    }
+                };
+                eprintln!("DONE")
             }
             Err(err) => {
                 eprintln!("Incoming connection failed with error '{}'", err);
