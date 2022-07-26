@@ -3,12 +3,24 @@ use std::env;
 use std::fmt::Display;
 use std::fs;
 use std::path::PathBuf;
+use toml_edit::easy as toml;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Event {
+    pub name: String,
+    pub time: String,
+    pub requirements: Vec<String>,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DiagonatorConfig {
     pub diagonator_path: String,
     pub diagonator_args: Vec<String>,
     pub socket_path: String,
+    pub events: Vec<Event>,
+    pub day_start_time: String,
+    pub work_period_minutes: u64,
+    pub break_minutes: u64,
 }
 
 impl Default for DiagonatorConfig {
@@ -27,6 +39,10 @@ impl Default for DiagonatorConfig {
             diagonator_path,
             diagonator_args: Vec::new(),
             socket_path,
+            events: Vec::new(),
+            day_start_time: "4:00".to_owned(),
+            work_period_minutes: 25,
+            break_minutes: 5,
         }
     }
 }

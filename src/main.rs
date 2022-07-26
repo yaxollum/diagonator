@@ -1,5 +1,6 @@
 mod config;
 mod server;
+mod time;
 
 use config::load_config;
 use server::launch_server;
