@@ -35,6 +35,7 @@ enum Command {
     EndSession,
     GetInfo,
     CompleteRequirement { id: u64 },
+    ListenForInfoChange,
 }
 
 struct SimpleResponse {
