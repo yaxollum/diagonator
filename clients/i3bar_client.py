@@ -21,28 +21,27 @@ with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server_socket:
             response += server_socket.recv(1024)
         response = json.loads(response)
         if response["type"] == "Info":
+            unix_time = int(time.time())
 
             def fmt_remaining_time(t):
-                duration = t - int(time.time())
-                return f"{duration//60}:{duration%60:02} remaining"
+                duration = t - unix_time
+                minutes = duration // 60
+                return f"{minutes} minute{'s'[:minutes!=1]} remaining"
 
             state = response["info"]["state"]
+
+            if state["type"] == "Unlockable":
+                msg = "Session is unlockable"
+            elif state["type"] == "Locked":
+                msg = f"Session is locked: {fmt_remaining_time(state['until'])}"
+            else:
+                assert state["type"] == "Active"
+                msg = f"Session is active: {fmt_remaining_time(state['until'])}"
+            time_str = time.strftime("%a %Y-%m-%d %H:%M", time.localtime(unix_time))
             # flush=True is necessary when printing because i3bar uses a pipe
             # to communicate with this program, and Python's write buffer isn't
             # automatically flushed when printing to a pipe
-            if state["type"] == "Unlockable":
-                print("Session is unlockable", flush=True)
-            elif state["type"] == "Locked":
-                print(
-                    f"Session is locked: {fmt_remaining_time(state['until'])}",
-                    flush=True,
-                )
-            else:
-                assert state["type"] == "Active"
-                print(
-                    f"Session is active: {fmt_remaining_time(state['until'])}",
-                    flush=True,
-                )
+            print(f"{msg} | {time_str} ", flush=True)
         else:
             # an error occured
             print(response, flush=True)
