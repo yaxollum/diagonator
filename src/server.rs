@@ -10,6 +10,8 @@ use std::io::BufReader;
 use std::io::Write;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
+use std::process::Child;
+use std::process::Command;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
@@ -94,6 +96,8 @@ struct DiagonatorManager {
     // current_date: DiagonatorDate,
     work_period_duration: u64,
     break_duration: u64,
+    diagonator_process: Option<Child>,
+    diagonator_command: (String, Vec<String>),
 }
 
 impl DiagonatorManager {
@@ -150,6 +154,27 @@ impl DiagonatorManager {
         if let CurrentState::Locked { until } = self.current_info.state {
             if current_time >= until {
                 self.current_info.state = CurrentState::Unlockable;
+            }
+        }
+        let diagonator_should_be_running =
+            !(matches!(self.current_info.state, CurrentState::Active { until: _ }));
+        match &mut self.diagonator_process {
+            Some(process) => {
+                if !diagonator_should_be_running {
+                    process.kill().expect("Failed to kill diagonator.");
+                    process.wait().expect("Failed to wait for diagonator.");
+                    self.diagonator_process = None;
+                }
+            }
+            None => {
+                if diagonator_should_be_running {
+                    self.diagonator_process = Some(
+                        Command::new(&self.diagonator_command.0)
+                            .args(&self.diagonator_command.1)
+                            .spawn()
+                            .expect("Failed to spawn diagonator."),
+                    )
+                }
             }
         }
     }
@@ -236,6 +261,8 @@ pub fn launch_server(config: DiagonatorConfig) -> Result<(), ServerError> {
         current_info: CurrentInfo::new(),
         work_period_duration: config.work_period_minutes * 60,
         break_duration: config.break_minutes * 60,
+        diagonator_command: (config.diagonator_path, config.diagonator_args),
+        diagonator_process: None,
     }));
     eprintln!("Listening for connections.");
     for stream in listener.incoming() {
