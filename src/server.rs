@@ -67,9 +67,10 @@ struct RequirementInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "type")]
 enum CurrentState {
-    Active(u64),
-    Locked(u64),
+    Active { until: u64 },
+    Locked { until: u64 },
     Unlockable,
 }
 
@@ -100,15 +101,16 @@ impl DiagonatorManager {
         self.refresh(current_time);
         match self.current_info.state {
             CurrentState::Unlockable => {
-                self.current_info.state =
-                    CurrentState::Active(current_time + self.work_period_duration);
+                self.current_info.state = CurrentState::Active {
+                    until: current_time + self.work_period_duration,
+                };
                 self.refresh(current_time);
                 Response::Success
             }
-            CurrentState::Active(_) => Response::Error {
+            CurrentState::Active { until: _ } => Response::Error {
                 msg: "Session is already active".to_owned(),
             },
-            CurrentState::Locked(_) => Response::Error {
+            CurrentState::Locked { until: _ } => Response::Error {
                 msg: "Session is locked".to_owned(),
             },
         }
@@ -116,8 +118,10 @@ impl DiagonatorManager {
     fn end_session(&mut self, current_time: u64) -> Response {
         self.refresh(current_time);
         match self.current_info.state {
-            CurrentState::Active(_) => {
-                self.current_info.state = CurrentState::Locked(current_time + self.break_duration);
+            CurrentState::Active { until: _ } => {
+                self.current_info.state = CurrentState::Locked {
+                    until: current_time + self.break_duration,
+                };
                 self.refresh(current_time);
                 Response::Success
             }
@@ -136,13 +140,15 @@ impl DiagonatorManager {
         Response::Success
     }
     fn refresh(&mut self, current_time: u64) {
-        if let CurrentState::Active(time) = self.current_info.state {
-            if current_time >= time {
-                self.current_info.state = CurrentState::Locked(time + self.break_duration);
+        if let CurrentState::Active { until } = self.current_info.state {
+            if current_time >= until {
+                self.current_info.state = CurrentState::Locked {
+                    until: until + self.break_duration,
+                };
             }
         }
-        if let CurrentState::Locked(time) = self.current_info.state {
-            if current_time >= time {
+        if let CurrentState::Locked { until } = self.current_info.state {
+            if current_time >= until {
                 self.current_info.state = CurrentState::Unlockable;
             }
         }
