@@ -10,6 +10,9 @@ use std::io::BufReader;
 use std::io::Write;
 use std::os::unix::net::UnixListener;
 use std::os::unix::net::UnixStream;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::thread;
 
 pub enum ServerError {
     SocketListenError(String, io::Error),
@@ -146,13 +149,72 @@ impl DiagonatorManager {
     }
 }
 
-fn send_response(stream: &mut UnixStream, response: Response) {
+enum ClientHandlingError {
+    SerializeError(serde_json::Error),
+    SendResponseError,
+    ReadRequestError,
+}
+
+impl Display for ClientHandlingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::SerializeError(err) => write!(f, "Failed to serialize response: '{}'.", err),
+            Self::ReadRequestError => write!(f, "Failed to read client request from socket."),
+            Self::SendResponseError => write!(f, "Failed to send response to client"),
+        }
+    }
+}
+
+fn send_response(stream: &mut UnixStream, response: Response) -> Result<(), ClientHandlingError> {
     writeln!(
         stream,
         "{}",
-        serde_json::to_string(&response).expect("Failed to serialize response")
+        serde_json::to_string(&response).map_err(|err| ClientHandlingError::SerializeError(err))?
     )
-    .expect("Failed to send response to client");
+    .map_err(|_| ClientHandlingError::SendResponseError)
+}
+
+fn handle_client_inner(
+    mut stream: UnixStream,
+    manager: Arc<Mutex<DiagonatorManager>>,
+) -> Result<(), ClientHandlingError> {
+    loop {
+        let mut buf_stream = BufReader::new(&stream);
+        let mut data = String::new();
+        buf_stream
+            .read_line(&mut data)
+            .map_err(|_| ClientHandlingError::ReadRequestError)?;
+        match serde_json::from_str::<Request>(&data) {
+            Ok(request) => {
+                let response = {
+                    let mut manager = manager.lock().unwrap();
+                    match request {
+                        Request::StartSession => manager.start_session(unix_time()),
+                        Request::EndSession => manager.end_session(unix_time()),
+                        Request::GetInfo => manager.get_info(unix_time()),
+                        Request::CompleteRequirement { id } => manager.complete_requirement(id),
+                    }
+                };
+                send_response(&mut stream, response)?;
+            }
+            Err(err) => {
+                send_response(
+                    &mut stream,
+                    Response::Error {
+                        msg: format!("Invalid request: {}", err),
+                    },
+                )?;
+            }
+        };
+    }
+}
+
+fn handle_client(stream: UnixStream, manager: Arc<Mutex<DiagonatorManager>>) {
+    eprintln!("Incoming connection received!");
+    if let Err(err) = handle_client_inner(stream, manager) {
+        eprintln!("{}", err);
+    }
+    eprintln!("Finished handling client.")
 }
 
 pub fn launch_server(config: DiagonatorConfig) -> Result<(), ServerError> {
@@ -164,41 +226,17 @@ pub fn launch_server(config: DiagonatorConfig) -> Result<(), ServerError> {
     }
     let listener = UnixListener::bind(&config.socket_path)
         .map_err(|err| ServerError::SocketListenError(config.socket_path.clone(), err))?;
-    let mut manager = DiagonatorManager {
+    let manager = Arc::new(Mutex::new(DiagonatorManager {
         current_info: CurrentInfo::new(),
         work_period_duration: config.work_period_minutes * 60,
         break_duration: config.break_minutes * 60,
-    };
+    }));
     eprintln!("Listening for connections.");
     for stream in listener.incoming() {
         match stream {
-            Ok(mut stream) => {
-                eprintln!("Incoming connection received!");
-                let mut buf_stream = BufReader::new(&stream);
-                let mut data = String::new();
-                buf_stream
-                    .read_line(&mut data)
-                    .expect("Failed to read client request from socket");
-                match serde_json::from_str::<Request>(&data) {
-                    Ok(request) => {
-                        let response = match request {
-                            Request::StartSession => manager.start_session(unix_time()),
-                            Request::EndSession => manager.end_session(unix_time()),
-                            Request::GetInfo => manager.get_info(unix_time()),
-                            Request::CompleteRequirement { id } => manager.complete_requirement(id),
-                        };
-                        send_response(&mut stream, response);
-                    }
-                    Err(err) => {
-                        send_response(
-                            &mut stream,
-                            Response::Error {
-                                msg: format!("Invalid request: {}", err),
-                            },
-                        );
-                    }
-                };
-                eprintln!("DONE")
+            Ok(stream) => {
+                let manager = manager.clone();
+                thread::spawn(move || handle_client(stream, manager));
             }
             Err(err) => {
                 eprintln!("Incoming connection failed with error '{}'", err);
