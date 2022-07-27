@@ -1,4 +1,5 @@
 use crate::config::DiagonatorConfig;
+use crate::time::unix_time;
 use crate::time::DiagonatorDate;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -40,15 +41,14 @@ enum Request {
     EndSession,
     GetInfo,
     CompleteRequirement { id: u64 },
-    ListenForInfoChange,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
 enum Response {
     Success,
-    Error(String),
-    Info(CurrentInfo),
+    Error { msg: String },
+    Info { info: CurrentInfo },
 }
 
 struct EventInfo {
@@ -63,14 +63,14 @@ struct RequirementInfo {
     event_id: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 enum CurrentState {
     Active(u64),
     Locked(u64),
     Unlockable,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct CurrentInfo {
     // incomplete_requirements: Vec<RequirementInfo>,
     // events: Vec<EventInfo>,
@@ -93,17 +93,56 @@ struct DiagonatorManager {
 }
 
 impl DiagonatorManager {
-    fn start_session(&mut self) -> Response {
-        Response::Success
+    fn start_session(&mut self, current_time: u64) -> Response {
+        self.refresh(current_time);
+        match self.current_info.state {
+            CurrentState::Unlockable => {
+                self.current_info.state =
+                    CurrentState::Active(current_time + self.work_period_duration);
+                self.refresh(current_time);
+                Response::Success
+            }
+            CurrentState::Active(_) => Response::Error {
+                msg: "Session is already active".to_owned(),
+            },
+            CurrentState::Locked(_) => Response::Error {
+                msg: "Session is locked".to_owned(),
+            },
+        }
     }
-    fn end_session(&mut self) -> Response {
-        Response::Success
+    fn end_session(&mut self, current_time: u64) -> Response {
+        self.refresh(current_time);
+        match self.current_info.state {
+            CurrentState::Active(_) => {
+                self.current_info.state = CurrentState::Locked(current_time + self.break_duration);
+                self.refresh(current_time);
+                Response::Success
+            }
+            _ => Response::Error {
+                msg: "Session is not active".to_owned(),
+            },
+        }
     }
-    fn get_info(&mut self) -> Response {
-        Response::Success
+    fn get_info(&mut self, current_time: u64) -> Response {
+        self.refresh(current_time);
+        Response::Info {
+            info: self.current_info.clone(),
+        }
     }
     fn complete_requirement(&mut self, requirement_id: u64) -> Response {
         Response::Success
+    }
+    fn refresh(&mut self, current_time: u64) {
+        if let CurrentState::Active(time) = self.current_info.state {
+            if current_time >= time {
+                self.current_info.state = CurrentState::Locked(time + self.break_duration);
+            }
+        }
+        if let CurrentState::Locked(time) = self.current_info.state {
+            if current_time >= time {
+                self.current_info.state = CurrentState::Unlockable;
+            }
+        }
     }
 }
 
@@ -143,19 +182,20 @@ pub fn launch_server(config: DiagonatorConfig) -> Result<(), ServerError> {
                 match serde_json::from_str::<Request>(&data) {
                     Ok(request) => {
                         let response = match request {
-                            Request::StartSession => manager.start_session(),
-                            Request::EndSession => manager.end_session(),
-                            Request::GetInfo => manager.get_info(),
+                            Request::StartSession => manager.start_session(unix_time()),
+                            Request::EndSession => manager.end_session(unix_time()),
+                            Request::GetInfo => manager.get_info(unix_time()),
                             Request::CompleteRequirement { id } => manager.complete_requirement(id),
-                            Request::ListenForInfoChange => Response::Success,
                         };
                         send_response(&mut stream, response);
-                        if request == Request::ListenForInfoChange {
-                            // TODO: wait to be notified here
-                        }
                     }
                     Err(err) => {
-                        send_response(&mut stream, Response::Error("Invalid request".to_owned()));
+                        send_response(
+                            &mut stream,
+                            Response::Error {
+                                msg: format!("Invalid request: {}", err),
+                            },
+                        );
                     }
                 };
                 eprintln!("DONE")
