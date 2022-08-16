@@ -39,6 +39,10 @@ The file path of the configuration file is printed in the first line of the serv
 
 Some tips to consider when customizing your configuration:
 
+- Set `diagonator_path` to the path to your diagonator executable.
+
+- Use `diagonator_args` to pass command-line arguments to diagonator. Specify each argument as a separate string in the list. For example, the command `diagonator --top-margin 50` would correspond to `diagonator_args = ["--top-margin", "50"]`.
+
 - Use 24-hour clock strings with the format `"HH:MM"` (e.g. `"16:30"`) to specify clock times.
 
 - If you don't want any requirements, remove all the entries that start with `[[requirements]]`.
@@ -51,7 +55,7 @@ Some tips to consider when customizing your configuration:
 
 ## Clients
 
-`diagonator-server` listens on a UNIX domain socket. The socket path is specified in the configuration file.
+`diagonator-server` listens on a UNIX domain socket. The socket path is specified as `socket_path` in the configuration file.
 
 The [`clients`](clients) folder contains some example clients that demonstrate how to connect to the server and send various requests to it.
 
