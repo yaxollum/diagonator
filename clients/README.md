@@ -25,3 +25,13 @@ This client can be simply tested from the command-line:
 ```
 
 or you can set it to your `status_command` in your i3 config file.
+
+## complete_requirement_dmenu.py
+
+This client retrieves a list of incomplete requirements from the server (using `GetInfo`), uses `dmenu` to ask you to pick a requirement from that list, and finally sends a `CompleteRequirement` request to mark that requirement as completed.
+
+You can pass command-line arguments to `dmenu` by passing them directly to `complete_requirement_dmenu.py`. For example:
+
+```
+./complete_requirement_dmenu.py -sb darkgreen
+```

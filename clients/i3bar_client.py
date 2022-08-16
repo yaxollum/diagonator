@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 
-import io
 import json
 import socket
-import sys
 import time
 
 SOCKET_PATH = "/tmp/diagonator-server.sock"
@@ -28,15 +26,43 @@ with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server_socket:
                 minutes = duration // 60
                 return f"{minutes} minute{'s'[:minutes!=1]} remaining"
 
-            state = response["info"]["state"]
+            def fmt_start_time(t):
+                if t is None:
+                    return "start of day"
+                else:
+                    return time.strftime("%H:%M", time.localtime(t))
 
-            if state["type"] == "Unlockable":
+            def fmt_end_time(t):
+                if t is None:
+                    return "end of day"
+                else:
+                    return time.strftime("%H:%M", time.localtime(t))
+
+            info = response["info"]
+
+            if info["state"] == "Unlockable":
                 msg = "Session is unlockable"
-            elif state["type"] == "Locked":
-                msg = f"Session is locked: {fmt_remaining_time(state['until'])}"
+            elif info["state"] == "Locked":
+                msg = "Session is locked"
             else:
-                assert state["type"] == "Active"
-                msg = f"Session is active: {fmt_remaining_time(state['until'])}"
+                assert info["state"] == "Unlocked"
+                msg = "Session is unlocked"
+
+            if info["reason"]["type"] == "BreakTimer":
+                msg += f": {fmt_remaining_time(info['until'])}"
+            else:
+                msg += f" until {fmt_end_time(info['until'])}"
+
+            if info["reason"]["type"] == "RequirementNotMet":
+                req_id = info["reason"]["id"]
+                req = next(req for req in info["requirements"] if req["id"] == req_id)
+                msg += f" (requirement \"{req['name']}\" due at {fmt_start_time(req['due'])})"
+            elif info["reason"]["type"] == "LockedTimeRange":
+                ltr_id = info["reason"]["id"]
+                ltr = next(
+                    ltr for ltr in info["locked_time_ranges"] if ltr["id"] == ltr_id
+                )
+                msg += f" (locked time range from {fmt_start_time(ltr['start'])} to {fmt_end_time(ltr['end'])})"
             time_str = time.strftime("%a %Y-%m-%d %H:%M", time.localtime(unix_time))
             # flush=True is necessary when printing because i3bar uses a pipe
             # to communicate with this program, and Python's write buffer isn't

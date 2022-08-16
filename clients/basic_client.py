@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 
-import io
 import json
 import socket
 import sys
-import time
 
 SOCKET_PATH = "/tmp/diagonator-server.sock"
 

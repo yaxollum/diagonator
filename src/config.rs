@@ -1,3 +1,4 @@
+use crate::time::HourMinute;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fmt::Display;
@@ -6,10 +7,15 @@ use std::path::PathBuf;
 use toml_edit::easy as toml;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Event {
+pub struct RequirementConfig {
     pub name: String,
-    pub time: String,
-    pub requirements: Vec<String>,
+    pub due: HourMinute,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct LockedTimeRangeConfig {
+    pub start: Option<HourMinute>,
+    pub end: Option<HourMinute>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -17,10 +23,10 @@ pub struct DiagonatorConfig {
     pub diagonator_path: String,
     pub diagonator_args: Vec<String>,
     pub socket_path: String,
-    pub events: Vec<Event>,
-    pub day_start_time: String,
-    pub work_period_minutes: u64,
-    pub break_minutes: u64,
+    pub requirements: Vec<RequirementConfig>,
+    pub locked_time_ranges: Vec<LockedTimeRangeConfig>,
+    pub work_period_minutes: i64,
+    pub break_minutes: i64,
 }
 
 impl Default for DiagonatorConfig {
@@ -37,10 +43,32 @@ impl Default for DiagonatorConfig {
         let socket_path = socket_path.to_string_lossy().to_string();
         Self {
             diagonator_path,
-            diagonator_args: Vec::new(),
+            diagonator_args: vec!["--top-margin".to_owned(), "100".to_owned()],
             socket_path,
-            events: Vec::new(),
-            day_start_time: "4:00".to_owned(),
+            requirements: vec![
+                RequirementConfig {
+                    name: "Name of requirement 1".to_owned(),
+                    due: HourMinute::new(8, 30).unwrap(),
+                },
+                RequirementConfig {
+                    name: "Name of requirement 2".to_owned(),
+                    due: HourMinute::new(20, 00).unwrap(),
+                },
+            ],
+            locked_time_ranges: vec![
+                LockedTimeRangeConfig {
+                    start: None,
+                    end: Some(HourMinute::new(4, 30).unwrap()),
+                },
+                LockedTimeRangeConfig {
+                    start: Some(HourMinute::new(12, 00).unwrap()),
+                    end: Some(HourMinute::new(13, 00).unwrap()),
+                },
+                LockedTimeRangeConfig {
+                    start: Some(HourMinute::new(22, 00).unwrap()),
+                    end: None,
+                },
+            ],
             work_period_minutes: 25,
             break_minutes: 5,
         }

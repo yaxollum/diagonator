@@ -1,19 +1,13 @@
 use crate::config::DiagonatorConfig;
-use crate::time::unix_time;
-use crate::time::DiagonatorDate;
+use crate::manager::{CurrentInfo, DiagonatorManager, DiagonatorManagerConfig};
+use crate::simulator::SimulatorError;
+use crate::time::{Duration, Timestamp};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::fs;
-use std::io;
-use std::io::BufRead;
-use std::io::BufReader;
-use std::io::Write;
-use std::os::unix::net::UnixListener;
-use std::os::unix::net::UnixStream;
-use std::process::Child;
-use std::process::Command;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::io::{self, BufRead, BufReader, Write};
+use std::os::unix::net::{UnixListener, UnixStream};
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 pub enum ServerError {
@@ -50,140 +44,17 @@ enum Request {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
-enum Response {
+pub enum Response {
     Success,
     Error { msg: String },
     Info { info: CurrentInfo },
 }
 
-struct EventInfo {
-    id: u64,
-    name: String,
-    time: u64,
-}
-
-struct RequirementInfo {
-    id: u64,
-    name: String,
-    event_id: u64,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "type")]
-enum CurrentState {
-    Active { until: u64 },
-    Locked { until: u64 },
-    Unlockable,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct CurrentInfo {
-    // incomplete_requirements: Vec<RequirementInfo>,
-    // events: Vec<EventInfo>,
-    state: CurrentState,
-}
-
-impl CurrentInfo {
-    fn new() -> Self {
-        Self {
-            state: CurrentState::Unlockable,
-        }
-    }
-}
-
-struct DiagonatorManager {
-    current_info: CurrentInfo,
-    // current_date: DiagonatorDate,
-    work_period_duration: u64,
-    break_duration: u64,
-    diagonator_process: Option<Child>,
-    diagonator_command: (String, Vec<String>),
-}
-
-impl DiagonatorManager {
-    fn start_session(&mut self, current_time: u64) -> Response {
-        self.refresh(current_time);
-        match self.current_info.state {
-            CurrentState::Unlockable => {
-                self.current_info.state = CurrentState::Active {
-                    until: current_time + self.work_period_duration,
-                };
-                self.refresh(current_time);
-                Response::Success
-            }
-            CurrentState::Active { until: _ } => Response::Error {
-                msg: "Session is already active".to_owned(),
-            },
-            CurrentState::Locked { until: _ } => Response::Error {
-                msg: "Session is locked".to_owned(),
-            },
-        }
-    }
-    fn end_session(&mut self, current_time: u64) -> Response {
-        self.refresh(current_time);
-        match self.current_info.state {
-            CurrentState::Active { until: _ } => {
-                self.current_info.state = CurrentState::Locked {
-                    until: current_time + self.break_duration,
-                };
-                self.refresh(current_time);
-                Response::Success
-            }
-            _ => Response::Error {
-                msg: "Session is not active".to_owned(),
-            },
-        }
-    }
-    fn get_info(&mut self, current_time: u64) -> Response {
-        self.refresh(current_time);
-        Response::Info {
-            info: self.current_info.clone(),
-        }
-    }
-    fn complete_requirement(&mut self, requirement_id: u64) -> Response {
-        Response::Success
-    }
-    fn refresh(&mut self, current_time: u64) {
-        if let CurrentState::Active { until } = self.current_info.state {
-            if current_time >= until {
-                self.current_info.state = CurrentState::Locked {
-                    until: until + self.break_duration,
-                };
-            }
-        }
-        if let CurrentState::Locked { until } = self.current_info.state {
-            if current_time >= until {
-                self.current_info.state = CurrentState::Unlockable;
-            }
-        }
-        let diagonator_should_be_running =
-            !(matches!(self.current_info.state, CurrentState::Active { until: _ }));
-        match &mut self.diagonator_process {
-            Some(process) => {
-                if !diagonator_should_be_running {
-                    process.kill().expect("Failed to kill diagonator.");
-                    process.wait().expect("Failed to wait for diagonator.");
-                    self.diagonator_process = None;
-                }
-            }
-            None => {
-                if diagonator_should_be_running {
-                    self.diagonator_process = Some(
-                        Command::new(&self.diagonator_command.0)
-                            .args(&self.diagonator_command.1)
-                            .spawn()
-                            .expect("Failed to spawn diagonator."),
-                    )
-                }
-            }
-        }
-    }
-}
-
-enum ClientHandlingError {
+pub enum ClientHandlingError {
     SerializeError(serde_json::Error),
     SendResponseError,
     ReadRequestError,
+    SimulatorError(SimulatorError),
 }
 
 impl Display for ClientHandlingError {
@@ -192,6 +63,7 @@ impl Display for ClientHandlingError {
             Self::SerializeError(err) => write!(f, "Failed to serialize response: '{}'.", err),
             Self::ReadRequestError => write!(f, "Failed to read client request from socket."),
             Self::SendResponseError => write!(f, "Failed to send response to client"),
+            Self::SimulatorError(err) => write!(f, "Simulator failed with error: '{:?}'", err),
         }
     }
 }
@@ -220,10 +92,12 @@ fn handle_client_inner(
                 let response = {
                     let mut manager = manager.lock().unwrap();
                     match request {
-                        Request::StartSession => manager.start_session(unix_time()),
-                        Request::EndSession => manager.end_session(unix_time()),
-                        Request::GetInfo => manager.get_info(unix_time()),
-                        Request::CompleteRequirement { id } => manager.complete_requirement(id),
+                        Request::StartSession => manager.unlock_timer(Timestamp::now())?,
+                        Request::EndSession => manager.lock_timer(Timestamp::now())?,
+                        Request::GetInfo => manager.get_info(Timestamp::now())?,
+                        Request::CompleteRequirement { id } => {
+                            manager.complete_requirement(Timestamp::now(), id)?
+                        }
                     }
                 };
                 send_response(&mut stream, response)?;
@@ -257,13 +131,15 @@ pub fn launch_server(config: DiagonatorConfig) -> Result<(), ServerError> {
     }
     let listener = UnixListener::bind(&config.socket_path)
         .map_err(|err| ServerError::SocketListenError(config.socket_path.clone(), err))?;
-    let manager = Arc::new(Mutex::new(DiagonatorManager {
-        current_info: CurrentInfo::new(),
-        work_period_duration: config.work_period_minutes * 60,
-        break_duration: config.break_minutes * 60,
+
+    let manager_config = DiagonatorManagerConfig {
         diagonator_command: (config.diagonator_path, config.diagonator_args),
-        diagonator_process: None,
-    }));
+        requirements: config.requirements,
+        locked_time_ranges: config.locked_time_ranges,
+        work_period_duration: Duration::from_minutes(config.work_period_minutes),
+        break_duration: Duration::from_minutes(config.break_minutes),
+    };
+    let manager = Arc::new(Mutex::new(DiagonatorManager::new(manager_config)));
     eprintln!("Listening for connections.");
     for stream in listener.incoming() {
         match stream {

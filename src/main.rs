@@ -1,5 +1,7 @@
 mod config;
+mod manager;
 mod server;
+mod simulator;
 mod time;
 
 use config::load_config;
