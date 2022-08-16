@@ -23,8 +23,8 @@ pub struct DiagonatorConfig {
     pub diagonator_path: String,
     pub diagonator_args: Vec<String>,
     pub socket_path: String,
-    pub requirements: Vec<RequirementConfig>,
-    pub locked_time_ranges: Vec<LockedTimeRangeConfig>,
+    pub requirements: Option<Vec<RequirementConfig>>,
+    pub locked_time_ranges: Option<Vec<LockedTimeRangeConfig>>,
     pub work_period_minutes: i64,
     pub break_minutes: i64,
 }
@@ -45,7 +45,7 @@ impl Default for DiagonatorConfig {
             diagonator_path,
             diagonator_args: vec!["--top-margin".to_owned(), "100".to_owned()],
             socket_path,
-            requirements: vec![
+            requirements: Some(vec![
                 RequirementConfig {
                     name: "Name of requirement 1".to_owned(),
                     due: HourMinute::new(8, 30).unwrap(),
@@ -54,8 +54,8 @@ impl Default for DiagonatorConfig {
                     name: "Name of requirement 2".to_owned(),
                     due: HourMinute::new(20, 00).unwrap(),
                 },
-            ],
-            locked_time_ranges: vec![
+            ]),
+            locked_time_ranges: Some(vec![
                 LockedTimeRangeConfig {
                     start: None,
                     end: Some(HourMinute::new(4, 30).unwrap()),
@@ -68,7 +68,7 @@ impl Default for DiagonatorConfig {
                     start: Some(HourMinute::new(22, 00).unwrap()),
                     end: None,
                 },
-            ],
+            ]),
             work_period_minutes: 25,
             break_minutes: 5,
         }

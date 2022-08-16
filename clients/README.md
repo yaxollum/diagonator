@@ -6,13 +6,13 @@ The clients assume that diagonator-server is listening on the socket `/tmp/diago
 
 ## basic_client.py
 
-This client sends a single request, specified by a command-line argument, to the server. It supports 3 different requests: `StartSession`, `EndSession`, and `GetInfo`. After sending the request, the client reads the response and outputs it to the terminal. For example, to use the `GetInfo` request, run
+This client sends a single request, specified by a command-line argument, to the server. It supports 3 different requests: `UnlockTimer`, `LockTimer`, and `GetInfo`. After sending the request, the client reads the response and outputs it to the terminal. For example, to use the `GetInfo` request, run
 
 ```
 ./basic_client.py GetInfo
 ```
 
-You can bind `basic_client.py StartSession` and `basic_client.py EndSession` to custom keyboard shortcuts on your desktop environment as quick ways to start or stop a session (`basic_client.py` needs to be in a directory on your `$PATH` for this to work).
+You can bind `basic_client.py UnlockTimer` and `basic_client.py LockTimer` to custom keyboard shortcuts on your desktop environment as quick ways to start or stop a session (`basic_client.py` needs to be in a directory on your `$PATH` for this to work).
 
 ## i3bar_client.py
 

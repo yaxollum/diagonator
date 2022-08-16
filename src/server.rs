@@ -33,11 +33,11 @@ impl Display for ServerError {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
 enum Request {
-    StartSession,
-    EndSession,
+    UnlockTimer,
+    LockTimer,
     GetInfo,
     CompleteRequirement { id: u64 },
 }
@@ -92,8 +92,8 @@ fn handle_client_inner(
                 let response = {
                     let mut manager = manager.lock().unwrap();
                     match request {
-                        Request::StartSession => manager.unlock_timer(Timestamp::now())?,
-                        Request::EndSession => manager.lock_timer(Timestamp::now())?,
+                        Request::UnlockTimer => manager.unlock_timer(Timestamp::now())?,
+                        Request::LockTimer => manager.lock_timer(Timestamp::now())?,
                         Request::GetInfo => manager.get_info(Timestamp::now())?,
                         Request::CompleteRequirement { id } => {
                             manager.complete_requirement(Timestamp::now(), id)?
@@ -134,8 +134,8 @@ pub fn launch_server(config: DiagonatorConfig) -> Result<(), ServerError> {
 
     let manager_config = DiagonatorManagerConfig {
         diagonator_command: (config.diagonator_path, config.diagonator_args),
-        requirements: config.requirements,
-        locked_time_ranges: config.locked_time_ranges,
+        requirements: config.requirements.unwrap_or(Vec::new()),
+        locked_time_ranges: config.locked_time_ranges.unwrap_or(Vec::new()),
         work_period_duration: Duration::from_minutes(config.work_period_minutes),
         break_duration: Duration::from_minutes(config.break_minutes),
     };

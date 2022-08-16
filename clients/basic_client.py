@@ -8,11 +8,11 @@ SOCKET_PATH = "/tmp/diagonator-server.sock"
 
 request_type = None
 if len(sys.argv) == 2:
-    if sys.argv[1] in ("StartSession", "EndSession", "GetInfo"):
+    if sys.argv[1] in ("UnlockTimer", "LockTimer", "GetInfo"):
         request_type = sys.argv[1]
 
 if request_type is None:
-    sys.exit(f"Please specify a request: StartSession, EndSession, or GetInfo.")
+    sys.exit(f"Please specify a request: UnlockTimer, LockTimer, or GetInfo.")
 
 request = {"type": request_type}
 
