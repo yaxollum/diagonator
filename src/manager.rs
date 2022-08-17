@@ -244,6 +244,7 @@ impl DiagonatorManager {
         }
     }
     pub fn lock_timer(&mut self, current_time: Timestamp) -> Result<Response, ClientHandlingError> {
+        self.check_running();
         self.refresh(current_time)?;
         match self.constraints.break_timer.lock(current_time) {
             Ok(()) => {
@@ -294,6 +295,14 @@ impl DiagonatorManager {
                 end: Timestamp::from_date_hm_opt(&self.current_date, &ltr.end),
             })
             .collect();
+    }
+    fn check_running(&mut self) {
+        if let Some(process) = &mut self.diagonator_process {
+            // check if diagonator process has terminated unexpectedly
+            if let Ok(Some(_)) = process.try_wait() {
+                self.diagonator_process = None;
+            }
+        }
     }
     fn refresh(&mut self, current_time: Timestamp) -> Result<CurrentInfo, ClientHandlingError> {
         let current_date = current_time.get_date();
