@@ -1,5 +1,5 @@
 # diagonator-server
-A server that controls [diagonator](https://github.com/yaxollum/diagonator).
+A server that controls [diagonator](https://github.com/yaxollum/diagonator), giving you a break timer, daily requirements, and locked time ranges
 
 ## Installation
 
