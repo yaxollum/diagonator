@@ -17,6 +17,10 @@ Run `diagonator-server` to start the server.
 
 This will create a configuration file with the default options. See the [Configuration](#configuration) section for specifics on configuration.
 
+### Logging
+
+`diagonator-server` does not write to a log file. It prints all messages to its standard error (stderr). You can log the server's stderr using [`diagonator-server-with-logger.py`](diagonator-server-with-logger.py), which prefixes each line with a timestamp before logging it to a file of your choice. Run `diagonator-server-with-logger.py` by specifying the log file's location as a command-line argument.
+
 ## Concepts
 
 `diagonator-server` has 3 possible states and 3 concepts that determine which state it is in.
