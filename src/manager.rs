@@ -123,26 +123,13 @@ impl Constraints {
     ) -> Result<CurrentInfo, ClientHandlingError> {
         self.break_timer.refresh(current_time);
         let mut simulator = Simulator::new();
-        match &self.break_timer.timer {
-            BreakTimer::Unlocked { until } => simulator.push(StateChange {
-                kind: StateChangeKind::BreakTimerLocked,
-                time: *until,
-            }),
-            BreakTimer::Locked { until } => {
-                simulator.push(StateChange {
-                    kind: StateChangeKind::BreakTimerLocked,
-                    time: Timestamp::ZERO,
-                });
-                simulator.push(StateChange {
-                    kind: StateChangeKind::BreakTimerUnlockable,
-                    time: *until,
-                });
-            }
-            BreakTimer::Unlockable => simulator.push(StateChange {
-                kind: StateChangeKind::BreakTimerUnlockable,
-                time: Timestamp::ZERO,
-            }),
-        }
+        // now we push the state changes into the simulator in the following order:
+        // 1. requirements
+        // 2. locked time ranges
+        // 3. break timer
+        // this ensures that if multiple state changes occur at the same time,
+        // requirements and locked time ranges will get first and second priority,
+        // respectively, when determining the reason
         for requirement in &self.requirements {
             if !requirement.complete {
                 simulator.push(StateChange {
@@ -162,6 +149,26 @@ impl Constraints {
                     time: ltr_end,
                 })
             }
+        }
+        match &self.break_timer.timer {
+            BreakTimer::Unlocked { until } => simulator.push(StateChange {
+                kind: StateChangeKind::BreakTimerLocked,
+                time: *until,
+            }),
+            BreakTimer::Locked { until } => {
+                simulator.push(StateChange {
+                    kind: StateChangeKind::BreakTimerLocked,
+                    time: Timestamp::ZERO,
+                });
+                simulator.push(StateChange {
+                    kind: StateChangeKind::BreakTimerUnlockable,
+                    time: *until,
+                });
+            }
+            BreakTimer::Unlockable => simulator.push(StateChange {
+                kind: StateChangeKind::BreakTimerUnlockable,
+                time: Timestamp::ZERO,
+            }),
         }
         let result = simulator
             .run(current_time)

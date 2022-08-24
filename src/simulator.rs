@@ -76,6 +76,8 @@ impl Simulator {
         self.changes.push(change);
     }
     pub fn run(&mut self, target_time: Timestamp) -> Result<SimulatorResult, SimulatorError> {
+        // stable sort preserves original order of state changes with the same time
+        // state changes that were pushed earlier get higher priority when determining the reason
         self.changes.sort_by_key(|sc| sc.time);
         let mut locked_ranges = Locks::new();
         let mut locked_requirements = Locks::new();
