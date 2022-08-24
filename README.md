@@ -71,3 +71,4 @@ The available requests are:
 - `LockTimer` - Lock the break timer
 - `GetInfo` - Get information on the status of the server: the current state, when the current state will change, the reason for the current state, a list of requirements, and a list of locked time ranges
 - `CompleteRequirement` - Mark a requirement as completed by specifying its ID
+- `AddRequirement` - Add a one-time requirement by specifying its name and completion deadline

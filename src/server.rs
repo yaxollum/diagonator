@@ -1,7 +1,7 @@
 use crate::config::DiagonatorConfig;
 use crate::manager::{CurrentInfo, DiagonatorManager, DiagonatorManagerConfig};
 use crate::simulator::SimulatorError;
-use crate::time::{Duration, Timestamp};
+use crate::time::{Duration, HourMinute, Timestamp};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::fs;
@@ -40,6 +40,7 @@ enum Request {
     LockTimer,
     GetInfo,
     CompleteRequirement { id: u64 },
+    AddRequirement { name: String, due: HourMinute },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -97,6 +98,9 @@ fn handle_client_inner(
                         Request::GetInfo => manager.get_info(Timestamp::now())?,
                         Request::CompleteRequirement { id } => {
                             manager.complete_requirement(Timestamp::now(), id)?
+                        }
+                        Request::AddRequirement { name, due } => {
+                            manager.add_requirement(Timestamp::now(), name, due)?
                         }
                     }
                 };

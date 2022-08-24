@@ -35,3 +35,11 @@ You can pass command-line arguments to `dmenu` by passing them directly to `comp
 ```
 ./complete_requirement_dmenu.py -sb darkgreen
 ```
+
+## add_requirement.py
+
+This client adds a one-time requirement by sending an `AddRequirement` request. It accepts two command-line arguments: the name of the requirement and its completion deadline (as a 24-hour clock time). For example:
+
+```
+./add_requirement.py "go outside" 20:00
+```

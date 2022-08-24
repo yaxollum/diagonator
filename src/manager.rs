@@ -1,7 +1,7 @@
 use crate::config::{LockedTimeRangeConfig, RequirementConfig};
 use crate::server::{ClientHandlingError, Response};
 use crate::simulator::{Simulator, StateChange, StateChangeKind};
-use crate::time::{Duration, LocalDate, Timestamp};
+use crate::time::{Duration, HourMinute, LocalDate, Timestamp};
 use serde::{Deserialize, Serialize};
 use std::process::{Child, Command};
 
@@ -279,6 +279,22 @@ impl DiagonatorManager {
             }
             Err(msg) => Ok(Response::Error { msg }),
         }
+    }
+    pub fn add_requirement(
+        &mut self,
+        current_time: Timestamp,
+        name: String,
+        due: HourMinute,
+    ) -> Result<Response, ClientHandlingError> {
+        self.refresh(current_time)?;
+        self.constraints.requirements.push(Requirement {
+            id: self.id_generator.next_id(),
+            name,
+            due: Timestamp::from_date_hm(&self.current_date, &due),
+            complete: false,
+        });
+        self.refresh(current_time)?;
+        Ok(Response::Success)
     }
     fn new_day(&mut self) {
         self.constraints.requirements = self
