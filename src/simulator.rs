@@ -1,6 +1,7 @@
-use crate::{manager::CurrentState, time::Timestamp};
+use crate::manager::{CurrentState, CurrentStateReason};
+use crate::time::Timestamp;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum StateChangeKind {
     BreakTimerUnlockable,
     BreakTimerLocked,
@@ -9,7 +10,7 @@ pub enum StateChangeKind {
     RequirementLocked(u64),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StateChange {
     pub kind: StateChangeKind,
     pub time: Timestamp,
@@ -46,20 +47,19 @@ impl Locks {
     fn is_empty(&self) -> bool {
         self.locks.is_empty()
     }
+    fn first(&self) -> Option<u64> {
+        self.locks.first().copied()
+    }
     fn new() -> Self {
         Self { locks: Vec::new() }
     }
 }
 
-struct SimulatorState {
-    state: CurrentState,
-    last_change: Option<StateChange>,
-}
-
+#[derive(Debug)]
 pub struct SimulatorResult {
     pub target_state: CurrentState,
     pub until: Option<Timestamp>,
-    pub reason: Option<StateChangeKind>,
+    pub reason: CurrentStateReason,
 }
 
 pub struct Simulator {
@@ -82,10 +82,7 @@ impl Simulator {
         let mut locked_ranges = Locks::new();
         let mut locked_requirements = Locks::new();
         let mut break_timer_state = CurrentState::Unlocked;
-        let mut simulator_state = SimulatorState {
-            state: CurrentState::Unlocked,
-            last_change: None,
-        };
+        let mut simulator_state = CurrentState::Unlocked;
         let mut simulator_result: Option<SimulatorResult> = None;
         for change in &self.changes {
             use StateChangeKind::*;
@@ -98,17 +95,26 @@ impl Simulator {
             }
             let state_after_change =
                 Self::calc_state(&locked_ranges, &locked_requirements, break_timer_state);
-            if state_after_change != simulator_state.state {
+            if simulator_state != state_after_change {
                 if change.time > target_time {
                     simulator_result = Some(SimulatorResult {
-                        target_state: simulator_state.state,
+                        target_state: simulator_state,
                         until: Some(change.time),
-                        reason: Some(change.kind),
+                        reason: match change.kind {
+                            StateChangeKind::BreakTimerUnlockable
+                            | StateChangeKind::BreakTimerLocked => CurrentStateReason::BreakTimer,
+                            StateChangeKind::RangeLocked(id)
+                            | StateChangeKind::RangeUnlocked(id) => {
+                                CurrentStateReason::LockedTimeRange { id }
+                            }
+                            StateChangeKind::RequirementLocked(id) => {
+                                CurrentStateReason::RequirementNotMet { id }
+                            }
+                        },
                     });
                     break;
                 } else {
-                    simulator_state.state = state_after_change;
-                    simulator_state.last_change = Some(change.clone());
+                    simulator_state = state_after_change;
                 }
             }
         }
@@ -116,9 +122,21 @@ impl Simulator {
             Ok(simulator_result)
         } else {
             Ok(SimulatorResult {
-                target_state: simulator_state.state,
+                target_state: simulator_state,
                 until: None,
-                reason: simulator_state.last_change.map(|change| change.kind),
+                reason: match simulator_state {
+                    CurrentState::Unlocked => CurrentStateReason::NoConstraints,
+                    CurrentState::Unlockable => CurrentStateReason::BreakTimer,
+                    CurrentState::Locked => {
+                        if let Some(id) = locked_requirements.first() {
+                            CurrentStateReason::RequirementNotMet { id }
+                        } else if let Some(id) = locked_ranges.first() {
+                            CurrentStateReason::LockedTimeRange { id }
+                        } else {
+                            CurrentStateReason::BreakTimer
+                        }
+                    }
+                },
             })
         }
     }

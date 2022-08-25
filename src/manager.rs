@@ -81,9 +81,6 @@ impl BreakTimerManager {
             }
         }
     }
-    fn lock_if_unlocked(&mut self, current_time: Timestamp) {
-        if let Ok(_) = self.lock(current_time) {}
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,7 +92,7 @@ pub enum CurrentState {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type")]
-enum CurrentStateReason {
+pub enum CurrentStateReason {
     BreakTimer,
     RequirementNotMet { id: u64 },
     LockedTimeRange { id: u64 },
@@ -176,18 +173,7 @@ impl Constraints {
         Ok(CurrentInfo {
             state: result.target_state,
             until: result.until,
-            reason: match result.reason {
-                Some(StateChangeKind::BreakTimerUnlockable | StateChangeKind::BreakTimerLocked) => {
-                    CurrentStateReason::BreakTimer
-                }
-                Some(StateChangeKind::RangeLocked(id) | StateChangeKind::RangeUnlocked(id)) => {
-                    CurrentStateReason::LockedTimeRange { id }
-                }
-                Some(StateChangeKind::RequirementLocked(id)) => {
-                    CurrentStateReason::RequirementNotMet { id }
-                }
-                None => CurrentStateReason::NoConstraints,
-            },
+            reason: result.reason,
             locked_time_ranges: self.locked_time_ranges.clone(),
             requirements: self.requirements.clone(),
         })
@@ -333,11 +319,14 @@ impl DiagonatorManager {
             self.current_date = current_date;
             self.new_day();
         }
-        let current_info = self.constraints.get_current_info(current_time)?;
+        let mut current_info = self.constraints.get_current_info(current_time)?;
 
         let diagonator_should_be_running = !(matches!(current_info.state, CurrentState::Unlocked));
         if diagonator_should_be_running {
-            self.constraints.break_timer.lock_if_unlocked(current_time);
+            // if the break timer is unlocked, then we lock it and refresh the constraints
+            if let Ok(()) = self.constraints.break_timer.lock(current_time) {
+                current_info = self.constraints.get_current_info(current_time)?;
+            }
         }
         match &mut self.diagonator_process {
             Some(process) => {
