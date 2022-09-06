@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import json
+import operator
 import socket
 import subprocess
 import sys
@@ -27,6 +28,8 @@ with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server_socket:
         requirements = [
             req for req in info["info"]["requirements"] if not req["complete"]
         ]
+        # sort requirements by time in ascending order
+        requirements.sort(key=operator.itemgetter("due"))
         if len(requirements) != 0:
             choice = (
                 subprocess.run(
