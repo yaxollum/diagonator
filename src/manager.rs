@@ -247,6 +247,7 @@ impl DiagonatorManager {
     }
     pub fn lock_timer(&mut self, current_time: Timestamp) -> Result<Response, ClientHandlingError> {
         self.check_running();
+        self.constraints.deactivated_until = None;
         self.refresh(current_time)?;
         match self.constraints.break_timer.lock(current_time) {
             Ok(()) => {
@@ -296,8 +297,8 @@ impl DiagonatorManager {
         current_time: Timestamp,
         duration: Duration,
     ) -> Result<Response, ClientHandlingError> {
-        self.refresh(current_time)?;
         self.constraints.deactivated_until = Some(current_time + duration);
+        self.refresh(current_time)?;
         Ok(Response::Success)
     }
     fn new_day(&mut self) {
