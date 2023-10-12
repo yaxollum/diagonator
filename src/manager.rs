@@ -106,11 +106,13 @@ pub struct CurrentInfo {
     reason: CurrentStateReason,
     locked_time_ranges: Vec<TimeRange>,
     requirements: Vec<Requirement>,
+    deactivated_until: Option<Timestamp>,
 }
 struct Constraints {
     break_timer: BreakTimerManager,
     requirements: Vec<Requirement>,
     locked_time_ranges: Vec<TimeRange>,
+    deactivated_until: Option<Timestamp>,
 }
 
 impl Constraints {
@@ -119,6 +121,11 @@ impl Constraints {
         current_time: Timestamp,
     ) -> Result<CurrentInfo, ClientHandlingError> {
         self.break_timer.refresh(current_time);
+        if let Some(du) = self.deactivated_until {
+            if current_time >= du {
+                self.deactivated_until = None;
+            }
+        }
         let mut simulator = Simulator::new();
         // now we push the state changes into the simulator in the following order:
         // 1. requirements
@@ -176,6 +183,7 @@ impl Constraints {
             reason: result.reason,
             locked_time_ranges: self.locked_time_ranges.clone(),
             requirements: self.requirements.clone(),
+            deactivated_until: self.deactivated_until,
         })
     }
     fn complete_requirement(&mut self, id: u64) -> Result<(), String> {
@@ -212,6 +220,7 @@ impl DiagonatorManager {
                 break_timer,
                 requirements: Vec::new(),
                 locked_time_ranges: Vec::new(),
+                deactivated_until: None,
             },
             current_date: Timestamp::ZERO.get_date(),
             id_generator: IdGenerator::new(),
@@ -282,6 +291,15 @@ impl DiagonatorManager {
         self.refresh(current_time)?;
         Ok(Response::Success)
     }
+    pub fn deactivate(
+        &mut self,
+        current_time: Timestamp,
+        duration: Duration,
+    ) -> Result<Response, ClientHandlingError> {
+        self.refresh(current_time)?;
+        self.constraints.deactivated_until = Some(current_time + duration);
+        Ok(Response::Success)
+    }
     fn new_day(&mut self) {
         self.constraints.requirements = self
             .config
@@ -321,7 +339,8 @@ impl DiagonatorManager {
         }
         let mut current_info = self.constraints.get_current_info(current_time)?;
 
-        let diagonator_should_be_running = !(matches!(current_info.state, CurrentState::Unlocked));
+        let diagonator_should_be_running = !(matches!(current_info.state, CurrentState::Unlocked)
+            || current_info.deactivated_until.is_some());
         if diagonator_should_be_running {
             // if the break timer is unlocked, then we lock it and refresh the constraints
             if let Ok(()) = self.constraints.break_timer.lock(current_time) {

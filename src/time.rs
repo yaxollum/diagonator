@@ -57,7 +57,7 @@ impl<'de> Deserialize<'de> for HourMinute {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct Duration(i64);
 
 impl Duration {

@@ -41,6 +41,7 @@ enum Request {
     GetInfo,
     CompleteRequirement { id: u64 },
     AddRequirement { name: String, due: HourMinute },
+    Deactivate { duration: Duration },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -101,6 +102,9 @@ fn handle_client_inner(
                         }
                         Request::AddRequirement { name, due } => {
                             manager.add_requirement(Timestamp::now(), name, due)?
+                        }
+                        Request::Deactivate { duration } => {
+                            manager.deactivate(Timestamp::now(), duration)?
                         }
                     }
                 };
