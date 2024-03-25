@@ -27,6 +27,18 @@ def send_request(server_socket, request):
 
 
 def correct():
+    def round_up(t):
+        h = t.hour
+        if h < 4:
+            h += 24
+        m = t.minute
+        if m < 30:
+            m = 30
+        else:
+            h += 1
+            m = 0
+        return f"{h:02}:{m:02}"
+
     answer = (
         subprocess.run(
             DMENU_CMD,
@@ -38,7 +50,7 @@ def correct():
     )
     t = datetime.datetime.now()
     t2 = t - datetime.timedelta(minutes=1)
-    return answer in (t.strftime("%H:%M"), t2.strftime("%H:%M"))
+    return answer in (round_up(t), round_up(t2))
 
 
 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as server_socket:
