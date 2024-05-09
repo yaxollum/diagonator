@@ -49,6 +49,8 @@ def correct():
         .strip("\n")
     )
     t = datetime.datetime.now()
+    if t.hour < 4:
+        return False
     t2 = t - datetime.timedelta(minutes=1)
     return answer in (round_up(t), round_up(t2))
 
