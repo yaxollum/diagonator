@@ -17,6 +17,7 @@ pub struct StateChange {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum SimulatorError {
     LockNotFound(u64),
     DuplicateLock(u64),
