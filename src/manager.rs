@@ -1,9 +1,8 @@
 use crate::config::{LockedTimeRangeConfig, RequirementConfig};
-use crate::server::{ClientHandlingError, Response};
+use crate::server::Response;
 use crate::simulator::{Simulator, StateChange, StateChangeKind};
 use crate::time::{Duration, HourMinute, LocalDate, Timestamp};
 use serde::{Deserialize, Serialize};
-use std::process::{Child, Command};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Requirement {
@@ -107,6 +106,7 @@ pub struct CurrentInfo {
     locked_time_ranges: Vec<TimeRange>,
     requirements: Vec<Requirement>,
     deactivated_until: Option<Timestamp>,
+    diagonator_running: bool,
 }
 struct Constraints {
     break_timer: BreakTimerManager,
@@ -116,10 +116,7 @@ struct Constraints {
 }
 
 impl Constraints {
-    fn get_current_info(
-        &mut self,
-        current_time: Timestamp,
-    ) -> Result<CurrentInfo, ClientHandlingError> {
+    fn get_current_info(&mut self, current_time: Timestamp) -> CurrentInfo {
         self.break_timer.refresh(current_time);
         if let Some(du) = self.deactivated_until {
             if current_time >= du {
@@ -174,17 +171,18 @@ impl Constraints {
                 time: Timestamp::ZERO,
             }),
         }
-        let result = simulator
-            .run(current_time)
-            .map_err(|e| ClientHandlingError::SimulatorError(e))?;
-        Ok(CurrentInfo {
+        let result = simulator.run(current_time);
+        let diagonator_running = !(matches!(result.target_state, CurrentState::Unlocked)
+            || self.deactivated_until.is_some());
+        CurrentInfo {
             state: result.target_state,
             until: result.until,
             reason: result.reason,
             locked_time_ranges: self.locked_time_ranges.clone(),
             requirements: self.requirements.clone(),
             deactivated_until: self.deactivated_until,
-        })
+            diagonator_running,
+        }
     }
     fn complete_requirement(&mut self, id: u64) -> Result<(), String> {
         for req in &mut self.requirements {
@@ -203,7 +201,6 @@ impl Constraints {
 
 pub struct DiagonatorManager {
     config: DiagonatorManagerConfig,
-    diagonator_process: Option<Child>,
     constraints: Constraints,
     current_date: LocalDate,
     id_generator: IdGenerator,
@@ -215,7 +212,6 @@ impl DiagonatorManager {
             BreakTimerManager::new(config.work_period_duration, config.break_duration);
         Self {
             config,
-            diagonator_process: None,
             constraints: Constraints {
                 break_timer,
                 requirements: Vec::new(),
@@ -226,54 +222,50 @@ impl DiagonatorManager {
             id_generator: IdGenerator::new(),
         }
     }
-    pub fn unlock_timer(
-        &mut self,
-        current_time: Timestamp,
-    ) -> Result<Response, ClientHandlingError> {
-        let info = self.refresh(current_time)?;
+    pub fn unlock_timer(&mut self, current_time: Timestamp) -> Response {
+        let info = self.refresh(current_time);
         if matches!(info.state, CurrentState::Unlockable) {
             match self.constraints.break_timer.unlock(current_time) {
                 Ok(()) => {
-                    self.refresh(current_time)?;
-                    Ok(Response::Success)
+                    self.refresh(current_time);
+                    Response::Success
                 }
-                Err(msg) => Ok(Response::Error { msg }),
+                Err(msg) => Response::Error { msg },
             }
         } else {
-            Ok(Response::Error {
+            Response::Error {
                 msg: "Session is not unlockable.".to_owned(),
-            })
+            }
         }
     }
-    pub fn lock_timer(&mut self, current_time: Timestamp) -> Result<Response, ClientHandlingError> {
-        self.check_running();
+    pub fn lock_timer(&mut self, current_time: Timestamp) -> Response {
         self.constraints.deactivated_until = None;
-        self.refresh(current_time)?;
+        self.refresh(current_time);
         match self.constraints.break_timer.lock(current_time) {
             Ok(()) => {
-                self.refresh(current_time)?;
-                Ok(Response::Success)
+                self.refresh(current_time);
+                Response::Success
             }
-            Err(msg) => Ok(Response::Error { msg }),
+            Err(msg) => Response::Error { msg },
         }
     }
-    pub fn get_info(&mut self, current_time: Timestamp) -> Result<Response, ClientHandlingError> {
-        Ok(Response::Info {
-            info: self.refresh(current_time)?,
-        })
+    pub fn get_info(&mut self, current_time: Timestamp) -> Response {
+        Response::Info {
+            info: self.refresh(current_time),
+        }
     }
     pub fn complete_requirement(
         &mut self,
         current_time: Timestamp,
         requirement_id: u64,
-    ) -> Result<Response, ClientHandlingError> {
-        self.refresh(current_time)?;
+    ) -> Response {
+        self.refresh(current_time);
         match self.constraints.complete_requirement(requirement_id) {
             Ok(()) => {
-                self.refresh(current_time)?;
-                Ok(Response::Success)
+                self.refresh(current_time);
+                Response::Success
             }
-            Err(msg) => Ok(Response::Error { msg }),
+            Err(msg) => Response::Error { msg },
         }
     }
     pub fn add_requirement(
@@ -281,25 +273,21 @@ impl DiagonatorManager {
         current_time: Timestamp,
         name: String,
         due: HourMinute,
-    ) -> Result<Response, ClientHandlingError> {
-        self.refresh(current_time)?;
+    ) -> Response {
+        self.refresh(current_time);
         self.constraints.requirements.push(Requirement {
             id: self.id_generator.next_id(),
             name,
             due: Timestamp::from_date_hm(&self.current_date, &due),
             complete: false,
         });
-        self.refresh(current_time)?;
-        Ok(Response::Success)
+        self.refresh(current_time);
+        Response::Success
     }
-    pub fn deactivate(
-        &mut self,
-        current_time: Timestamp,
-        duration: Duration,
-    ) -> Result<Response, ClientHandlingError> {
+    pub fn deactivate(&mut self, current_time: Timestamp, duration: Duration) -> Response {
         self.constraints.deactivated_until = Some(current_time + duration);
-        self.refresh(current_time)?;
-        Ok(Response::Success)
+        self.refresh(current_time);
+        Response::Success
     }
     fn new_day(&mut self) {
         self.constraints.requirements = self
@@ -324,55 +312,25 @@ impl DiagonatorManager {
             })
             .collect();
     }
-    fn check_running(&mut self) {
-        if let Some(process) = &mut self.diagonator_process {
-            // check if diagonator process has terminated unexpectedly
-            if let Ok(Some(_)) = process.try_wait() {
-                self.diagonator_process = None;
-            }
-        }
-    }
-    fn refresh(&mut self, current_time: Timestamp) -> Result<CurrentInfo, ClientHandlingError> {
+    fn refresh(&mut self, current_time: Timestamp) -> CurrentInfo {
         let current_date = current_time.get_date();
         if current_date != self.current_date {
             self.current_date = current_date;
             self.new_day();
         }
-        let mut current_info = self.constraints.get_current_info(current_time)?;
+        let mut current_info = self.constraints.get_current_info(current_time);
 
-        let diagonator_should_be_running = !(matches!(current_info.state, CurrentState::Unlocked)
-            || current_info.deactivated_until.is_some());
-        if diagonator_should_be_running {
+        if current_info.diagonator_running {
             // if the break timer is unlocked, then we lock it and refresh the constraints
             if let Ok(()) = self.constraints.break_timer.lock(current_time) {
-                current_info = self.constraints.get_current_info(current_time)?;
+                current_info = self.constraints.get_current_info(current_time);
             }
         }
-        match &mut self.diagonator_process {
-            Some(process) => {
-                if !diagonator_should_be_running {
-                    process.kill().expect("Failed to kill diagonator.");
-                    process.wait().expect("Failed to wait for diagonator.");
-                    self.diagonator_process = None;
-                }
-            }
-            None => {
-                if diagonator_should_be_running {
-                    self.diagonator_process = Some(
-                        Command::new(&self.config.diagonator_command.0)
-                            .args(&self.config.diagonator_command.1)
-                            .spawn()
-                            .expect("Failed to spawn diagonator."),
-                    )
-                }
-            }
-        }
-        Ok(current_info)
+        current_info
     }
 }
 
 pub struct DiagonatorManagerConfig {
-    pub diagonator_command: (String, Vec<String>),
     pub requirements: Vec<RequirementConfig>,
     pub locked_time_ranges: Vec<LockedTimeRangeConfig>,
     pub work_period_duration: Duration,

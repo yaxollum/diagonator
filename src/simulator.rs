@@ -16,34 +16,26 @@ pub struct StateChange {
     pub time: Timestamp,
 }
 
-#[derive(Debug)]
-#[allow(dead_code)]
-pub enum SimulatorError {
-    LockNotFound(u64),
-    DuplicateLock(u64),
-}
-
 struct Locks {
     locks: Vec<u64>,
 }
 
 impl Locks {
-    fn add_lock(&mut self, id: u64) -> Result<(), SimulatorError> {
-        if self.locks.iter().any(|&lock_id| lock_id == id) {
-            Err(SimulatorError::DuplicateLock(id))
-        } else {
-            self.locks.push(id);
-            Ok(())
-        }
+    fn add_lock(&mut self, id: u64) {
+        assert!(
+            !self.locks.iter().any(|&lock_id| lock_id == id),
+            "duplicate lock with id {}",
+            id
+        );
+        self.locks.push(id);
     }
-    fn unlock(&mut self, id: u64) -> Result<(), SimulatorError> {
+    fn unlock(&mut self, id: u64) {
         let index = self
             .locks
             .iter()
             .position(|&lock_id| lock_id == id)
-            .ok_or(SimulatorError::LockNotFound(id))?;
+            .expect(&format!("lock with id {} not found", id));
         self.locks.remove(index);
-        Ok(())
     }
     fn is_empty(&self) -> bool {
         self.locks.is_empty()
@@ -76,7 +68,7 @@ impl Simulator {
     pub fn push(&mut self, change: StateChange) {
         self.changes.push(change);
     }
-    pub fn run(&mut self, target_time: Timestamp) -> Result<SimulatorResult, SimulatorError> {
+    pub fn run(&mut self, target_time: Timestamp) -> SimulatorResult {
         // stable sort preserves original order of state changes with the same time
         // state changes that were pushed earlier get higher priority when determining the reason
         self.changes.sort_by_key(|sc| sc.time);
@@ -90,9 +82,9 @@ impl Simulator {
             match change.kind {
                 BreakTimerUnlockable => break_timer_state = CurrentState::Unlockable,
                 BreakTimerLocked => break_timer_state = CurrentState::Locked,
-                RangeLocked(id) => locked_ranges.add_lock(id)?,
-                RangeUnlocked(id) => locked_ranges.unlock(id)?,
-                RequirementLocked(id) => locked_requirements.add_lock(id)?,
+                RangeLocked(id) => locked_ranges.add_lock(id),
+                RangeUnlocked(id) => locked_ranges.unlock(id),
+                RequirementLocked(id) => locked_requirements.add_lock(id),
             }
             let state_after_change =
                 Self::calc_state(&locked_ranges, &locked_requirements, break_timer_state);
@@ -119,27 +111,23 @@ impl Simulator {
                 }
             }
         }
-        if let Some(simulator_result) = simulator_result {
-            Ok(simulator_result)
-        } else {
-            Ok(SimulatorResult {
-                target_state: simulator_state,
-                until: None,
-                reason: match simulator_state {
-                    CurrentState::Unlocked => CurrentStateReason::NoConstraints,
-                    CurrentState::Unlockable => CurrentStateReason::BreakTimer,
-                    CurrentState::Locked => {
-                        if let Some(id) = locked_requirements.first() {
-                            CurrentStateReason::RequirementNotMet { id }
-                        } else if let Some(id) = locked_ranges.first() {
-                            CurrentStateReason::LockedTimeRange { id }
-                        } else {
-                            CurrentStateReason::BreakTimer
-                        }
+        simulator_result.unwrap_or(SimulatorResult {
+            target_state: simulator_state,
+            until: None,
+            reason: match simulator_state {
+                CurrentState::Unlocked => CurrentStateReason::NoConstraints,
+                CurrentState::Unlockable => CurrentStateReason::BreakTimer,
+                CurrentState::Locked => {
+                    if let Some(id) = locked_requirements.first() {
+                        CurrentStateReason::RequirementNotMet { id }
+                    } else if let Some(id) = locked_ranges.first() {
+                        CurrentStateReason::LockedTimeRange { id }
+                    } else {
+                        CurrentStateReason::BreakTimer
                     }
-                },
-            })
-        }
+                }
+            },
+        })
     }
     fn calc_state(
         locked_ranges: &Locks,

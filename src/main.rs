@@ -7,12 +7,11 @@ mod time;
 use config::load_config;
 use server::launch_server;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     match load_config() {
         Ok(config) => {
-            if let Err(err) = launch_server(config) {
-                eprintln!("Server failed with error: {}", err);
-            }
+            launch_server(config).await;
         }
         Err(err) => {
             eprintln!("Encountered error when loading config: {}", err);

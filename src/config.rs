@@ -1,6 +1,5 @@
 use crate::time::HourMinute;
 use serde::{Deserialize, Serialize};
-use std::env;
 use std::fmt::Display;
 use std::fs;
 use std::path::PathBuf;
@@ -20,9 +19,7 @@ pub struct LockedTimeRangeConfig {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DiagonatorConfig {
-    pub diagonator_path: String,
-    pub diagonator_args: Vec<String>,
-    pub socket_path: String,
+    pub bind_on: String,
     pub requirements: Option<Vec<RequirementConfig>>,
     pub locked_time_ranges: Option<Vec<LockedTimeRangeConfig>>,
     pub work_period_minutes: i64,
@@ -31,20 +28,8 @@ pub struct DiagonatorConfig {
 
 impl Default for DiagonatorConfig {
     fn default() -> Self {
-        let diagonator_path: String = match dirs::executable_dir() {
-            Some(mut path) => {
-                path.push("diagonator");
-                path.to_string_lossy().to_string()
-            }
-            None => String::new(),
-        };
-        let mut socket_path = env::temp_dir();
-        socket_path.push("diagonator-server.sock");
-        let socket_path = socket_path.to_string_lossy().to_string();
         Self {
-            diagonator_path,
-            diagonator_args: vec!["--top-margin".to_owned(), "100".to_owned()],
-            socket_path,
+            bind_on: "0.0.0.0:3000".to_owned(),
             requirements: Some(vec![
                 RequirementConfig {
                     name: "Name of requirement 1".to_owned(),
@@ -152,7 +137,7 @@ fn make_default_config(config_file_path: &PathBuf) -> Result<(), LoadConfigError
 
 pub fn load_config() -> Result<DiagonatorConfig, LoadConfigError> {
     let mut config_file_path = dirs::config_dir().ok_or(LoadConfigError::ConfigDirNotFound)?;
-    config_file_path.push("diagonator-server");
+    config_file_path.push("diagonator-server-v2");
     fs::create_dir_all(&config_file_path)
         .map_err(|err| LoadConfigError::CreateDirError(config_file_path.clone(), err))?;
     config_file_path.push("config.toml");
