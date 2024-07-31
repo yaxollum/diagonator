@@ -27,7 +27,6 @@ pub enum Response {
 }
 
 pub async fn launch_server(config: DiagonatorConfig) {
-    eprintln!("Starting server with config {:?}", config);
     let (layer, io) = SocketIo::new_layer();
 
     let manager_config = DiagonatorManagerConfig {
@@ -40,13 +39,9 @@ pub async fn launch_server(config: DiagonatorConfig) {
         manager_config,
         Timestamp::now(),
     ))));
-    eprintln!("Listening for connections.");
     io.ns("/", |s: SocketRef| {
-        s.emit(
-            "info_update",
-            manager.lock().unwrap().get_info(Timestamp::now()),
-        )
-        .ok();
+        s.emit("info_update", manager.lock().unwrap().get_info())
+            .ok();
     });
 
     let app = axum::Router::new()
@@ -57,7 +52,7 @@ pub async fn launch_server(config: DiagonatorConfig) {
                 let response = match request {
                     Request::UnlockTimer => manager.unlock_timer(Timestamp::now()),
                     Request::LockTimer => manager.lock_timer(Timestamp::now()),
-                    Request::GetInfo => manager.get_info(Timestamp::now()),
+                    Request::GetInfo => manager.get_info_once(Timestamp::now()),
                     Request::CompleteRequirement { id } => {
                         manager.complete_requirement(Timestamp::now(), id)
                     }
@@ -73,6 +68,25 @@ pub async fn launch_server(config: DiagonatorConfig) {
         )
         .layer(layer);
 
+    eprintln!("Server is listening on {}", &config.bind_on);
     let listener = tokio::net::TcpListener::bind(config.bind_on).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+
+    let watch_for_changes = async {
+        let mut cache_version = DiagonatorManager::NO_CACHE;
+        loop {
+            if let Some((new_info, new_version)) = manager
+                .lock()
+                .unwrap()
+                .get_info_if_changed(cache_version, Timestamp::now())
+            {
+                if io.emit("info_update", new_info).is_err() {
+                    break;
+                }
+                cache_version = new_version;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        }
+        Ok(())
+    };
+    tokio::try_join!(axum::serve(listener, app), watch_for_changes).unwrap();
 }

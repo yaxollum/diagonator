@@ -207,6 +207,7 @@ pub struct DiagonatorManager {
 }
 
 impl DiagonatorManager {
+    pub const NO_CACHE: u64 = 0;
     pub fn new(config: DiagonatorManagerConfig, current_time: Timestamp) -> Self {
         let mut manager = DiagonatorManagerInner::new(config);
         let cached_info = manager.refresh(current_time);
@@ -214,7 +215,7 @@ impl DiagonatorManager {
             manager,
             cached_info,
             cache_time: current_time,
-            cache_version: 1,
+            cache_version: Self::NO_CACHE + 1,
         }
     }
     pub fn unlock_timer(&mut self, current_time: Timestamp) -> Response {
@@ -244,7 +245,24 @@ impl DiagonatorManager {
             Err(msg) => Response::Error { msg },
         }
     }
-    pub fn get_info(&mut self, current_time: Timestamp) -> Response {
+    pub fn get_info(&self) -> CurrentInfo {
+        self.cached_info.clone()
+    }
+    pub fn get_info_if_changed(
+        &mut self,
+        cache_version: u64,
+        current_time: Timestamp,
+    ) -> Option<(CurrentInfo, u64)> {
+        if current_time != self.cache_time {
+            self.refresh_cache(current_time);
+        }
+        if cache_version != self.cache_version {
+            Some((self.cached_info.clone(), self.cache_version))
+        } else {
+            None
+        }
+    }
+    pub fn get_info_once(&mut self, current_time: Timestamp) -> Response {
         Response::Info {
             info: self.refresh_cache(current_time),
         }
