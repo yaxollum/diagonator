@@ -71,6 +71,7 @@ pub async fn launch_server(config: DiagonatorConfig) {
     eprintln!("Server is listening on {}", &config.bind_on);
     let listener = tokio::net::TcpListener::bind(config.bind_on).await.unwrap();
 
+    let server = async { axum::serve(listener, app).await.unwrap() };
     let watch_for_changes = async {
         let mut cache_version = DiagonatorManager::NO_CACHE;
         loop {
@@ -79,14 +80,11 @@ pub async fn launch_server(config: DiagonatorConfig) {
                 .unwrap()
                 .get_info_if_changed(cache_version, Timestamp::now())
             {
-                if io.emit("info_update", new_info).is_err() {
-                    break;
-                }
+                io.emit("info_update", new_info).unwrap();
                 cache_version = new_version;
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         }
-        Ok(())
     };
-    tokio::try_join!(axum::serve(listener, app), watch_for_changes).unwrap();
+    tokio::join!(server, watch_for_changes);
 }
