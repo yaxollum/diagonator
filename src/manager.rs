@@ -4,7 +4,7 @@ use crate::simulator::{Simulator, StateChange, StateChangeKind};
 use crate::time::{Duration, HourMinute, LocalDate, Timestamp};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 struct Requirement {
     id: u64,
     name: String,
@@ -12,7 +12,7 @@ struct Requirement {
     complete: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 struct TimeRange {
     id: u64,
     start: Option<Timestamp>,
@@ -89,7 +89,7 @@ pub enum CurrentState {
     Unlockable,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "type")]
 pub enum CurrentStateReason {
     BreakTimer,
@@ -98,7 +98,7 @@ pub enum CurrentStateReason {
     NoConstraints,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct CurrentInfo {
     state: CurrentState,
     until: Option<Timestamp>,
@@ -200,13 +200,113 @@ impl Constraints {
 }
 
 pub struct DiagonatorManager {
+    manager: DiagonatorManagerInner,
+    cached_info: CurrentInfo,
+    cache_time: Timestamp,
+    cache_version: u64,
+}
+
+impl DiagonatorManager {
+    pub fn new(config: DiagonatorManagerConfig, current_time: Timestamp) -> Self {
+        let mut manager = DiagonatorManagerInner::new(config);
+        let cached_info = manager.refresh(current_time);
+        Self {
+            manager,
+            cached_info,
+            cache_time: current_time,
+            cache_version: 1,
+        }
+    }
+    pub fn unlock_timer(&mut self, current_time: Timestamp) -> Response {
+        let info = self.refresh_cache(current_time);
+        if matches!(info.state, CurrentState::Unlockable) {
+            match self.manager.constraints.break_timer.unlock(current_time) {
+                Ok(()) => {
+                    self.refresh_cache(current_time);
+                    Response::Success
+                }
+                Err(msg) => Response::Error { msg },
+            }
+        } else {
+            Response::Error {
+                msg: "Session is not unlockable.".to_owned(),
+            }
+        }
+    }
+    pub fn lock_timer(&mut self, current_time: Timestamp) -> Response {
+        self.manager.constraints.deactivated_until = None;
+        self.refresh_cache(current_time);
+        match self.manager.constraints.break_timer.lock(current_time) {
+            Ok(()) => {
+                self.refresh_cache(current_time);
+                Response::Success
+            }
+            Err(msg) => Response::Error { msg },
+        }
+    }
+    pub fn get_info(&mut self, current_time: Timestamp) -> Response {
+        Response::Info {
+            info: self.refresh_cache(current_time),
+        }
+    }
+    pub fn complete_requirement(
+        &mut self,
+        current_time: Timestamp,
+        requirement_id: u64,
+    ) -> Response {
+        self.refresh_cache(current_time);
+        match self
+            .manager
+            .constraints
+            .complete_requirement(requirement_id)
+        {
+            Ok(()) => {
+                self.refresh_cache(current_time);
+                Response::Success
+            }
+            Err(msg) => Response::Error { msg },
+        }
+    }
+    pub fn add_requirement(
+        &mut self,
+        current_time: Timestamp,
+        name: String,
+        due: HourMinute,
+    ) -> Response {
+        self.refresh_cache(current_time);
+        self.manager.constraints.requirements.push(Requirement {
+            id: self.manager.id_generator.next_id(),
+            name,
+            due: Timestamp::from_date_hm(&self.manager.current_date, &due),
+            complete: false,
+        });
+        self.refresh_cache(current_time);
+        Response::Success
+    }
+    pub fn deactivate(&mut self, current_time: Timestamp, duration: Duration) -> Response {
+        self.manager.constraints.deactivated_until = Some(current_time + duration);
+        self.refresh_cache(current_time);
+        Response::Success
+    }
+    fn refresh_cache(&mut self, current_time: Timestamp) -> CurrentInfo {
+        self.cache_time = current_time;
+        let new_info = self.manager.refresh(current_time);
+        if new_info != self.cached_info {
+            self.cached_info = new_info.clone();
+            self.cache_version += 1;
+        }
+        new_info
+    }
+}
+
+struct DiagonatorManagerInner {
     config: DiagonatorManagerConfig,
     constraints: Constraints,
     current_date: LocalDate,
     id_generator: IdGenerator,
 }
 
-impl DiagonatorManager {
+impl DiagonatorManagerInner {
     pub fn new(config: DiagonatorManagerConfig) -> Self {
         let break_timer =
             BreakTimerManager::new(config.work_period_duration, config.break_duration);
@@ -221,73 +321,6 @@ impl DiagonatorManager {
             current_date: Timestamp::ZERO.get_date(),
             id_generator: IdGenerator::new(),
         }
-    }
-    pub fn unlock_timer(&mut self, current_time: Timestamp) -> Response {
-        let info = self.refresh(current_time);
-        if matches!(info.state, CurrentState::Unlockable) {
-            match self.constraints.break_timer.unlock(current_time) {
-                Ok(()) => {
-                    self.refresh(current_time);
-                    Response::Success
-                }
-                Err(msg) => Response::Error { msg },
-            }
-        } else {
-            Response::Error {
-                msg: "Session is not unlockable.".to_owned(),
-            }
-        }
-    }
-    pub fn lock_timer(&mut self, current_time: Timestamp) -> Response {
-        self.constraints.deactivated_until = None;
-        self.refresh(current_time);
-        match self.constraints.break_timer.lock(current_time) {
-            Ok(()) => {
-                self.refresh(current_time);
-                Response::Success
-            }
-            Err(msg) => Response::Error { msg },
-        }
-    }
-    pub fn get_info(&mut self, current_time: Timestamp) -> Response {
-        Response::Info {
-            info: self.refresh(current_time),
-        }
-    }
-    pub fn complete_requirement(
-        &mut self,
-        current_time: Timestamp,
-        requirement_id: u64,
-    ) -> Response {
-        self.refresh(current_time);
-        match self.constraints.complete_requirement(requirement_id) {
-            Ok(()) => {
-                self.refresh(current_time);
-                Response::Success
-            }
-            Err(msg) => Response::Error { msg },
-        }
-    }
-    pub fn add_requirement(
-        &mut self,
-        current_time: Timestamp,
-        name: String,
-        due: HourMinute,
-    ) -> Response {
-        self.refresh(current_time);
-        self.constraints.requirements.push(Requirement {
-            id: self.id_generator.next_id(),
-            name,
-            due: Timestamp::from_date_hm(&self.current_date, &due),
-            complete: false,
-        });
-        self.refresh(current_time);
-        Response::Success
-    }
-    pub fn deactivate(&mut self, current_time: Timestamp, duration: Duration) -> Response {
-        self.constraints.deactivated_until = Some(current_time + duration);
-        self.refresh(current_time);
-        Response::Success
     }
     fn new_day(&mut self) {
         self.constraints.requirements = self

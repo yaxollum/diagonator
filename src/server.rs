@@ -36,7 +36,10 @@ pub async fn launch_server(config: DiagonatorConfig) {
         work_period_duration: Duration::from_minutes(config.work_period_minutes),
         break_duration: Duration::from_minutes(config.break_minutes),
     };
-    let manager = Box::leak(Box::new(Mutex::new(DiagonatorManager::new(manager_config))));
+    let manager = Box::leak(Box::new(Mutex::new(DiagonatorManager::new(
+        manager_config,
+        Timestamp::now(),
+    ))));
     eprintln!("Listening for connections.");
     io.ns("/", |s: SocketRef| {
         s.emit(
