@@ -137,7 +137,7 @@ fn make_default_config(config_file_path: &PathBuf) -> Result<(), LoadConfigError
 
 pub fn load_config() -> Result<DiagonatorConfig, LoadConfigError> {
     let mut config_file_path = dirs::config_dir().ok_or(LoadConfigError::ConfigDirNotFound)?;
-    config_file_path.push("diagonator-server-v2");
+    config_file_path.push("diagonator-server");
     fs::create_dir_all(&config_file_path)
         .map_err(|err| LoadConfigError::CreateDirError(config_file_path.clone(), err))?;
     config_file_path.push("config.toml");
