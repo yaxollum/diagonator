@@ -20,4 +20,5 @@ with socketio.SimpleClient() as sio:
                 proc = subprocess.Popen(DIAGONATOR_CMD)
             elif not running and proc is not None:
                 proc.terminate()
+                proc.wait()
                 proc = None
