@@ -1,8 +1,8 @@
 When you're working in front of a computer, it's easy to get so immersed in the content on your screen that you lose track of time and forget to take breaks. To solve this problem, I created **diagonator**, a tool that reminds you to take breaks by drawing diagonal lines across your entire screen:
 
-|Running on Linux|Running on Windows|
+|Running on Linux (X11)|Running on Windows|
 |-|-|
-|![Screenshot of Diagonator running on Linux](screenshot_linux.png)|![Screenshot of Diagonator running on Windows](screenshot_windows.png)|
+|![Screenshot of Diagonator running on Linux](screenshots/x11.png)|![Screenshot of Diagonator running on Windows](screenshots/windows.png)|
 
 ## Installation
 
