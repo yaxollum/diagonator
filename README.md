@@ -1,13 +1,16 @@
-# diagonator-server
-A server that controls [diagonator](https://github.com/yaxollum/diagonator), giving you a break timer, daily requirements, and locked time ranges
+When you're working in front of a computer, it's easy to get so immersed in the content on your screen that you lose track of time and forget to take breaks. To solve this problem, I created **diagonator**, a tool that reminds you to take breaks by drawing diagonal lines across your entire screen:
+
+|Running on Linux|Running on Windows|
+|-|-|
+|![Screenshot of Diagonator running on Linux](screenshot_linux.png)|![Screenshot of Diagonator running on Windows](screenshot_windows.png)|
 
 ## Installation
 
 Install `diagonator-server` using [`cargo`](https://doc.rust-lang.org/cargo/getting-started/installation.html):
 
 ```bash
-git clone https://github.com/yaxollum/diagonator-server.git
-cd diagonator-server
+git clone https://github.com/yaxollum/diagonator.git
+cd diagonator
 cargo install --path .
 ```
 
