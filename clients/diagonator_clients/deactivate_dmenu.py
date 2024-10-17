@@ -51,13 +51,15 @@ if correct():
         ).text
     )
     if ANALYTICS_FILE is not None:
+        current_state = requests.post(SERVER_URL, json={"type": "GetInfo"}).text
         with sqlite3.connect(ANALYTICS_FILE) as conn:
-            conn.execute("""CREATE TABLE deactivate_log(
+            conn.execute("""CREATE TABLE IF NOT EXISTS deactivate_log(
                 date TEXT NOT NULL,
                 time INTEGER NOT NULL,
                 state TEXT NOT NULL) STRICT""")
             conn.execute(
-                "INSERT INTO deactivate_log VALUES (?, ?, ?)", get_datetime_pair
+                "INSERT INTO deactivate_log(date,time,state) VALUES (?, ?, ?)",
+                get_datetime_pair() + (current_state,),
             )
 else:
     print("Incorrect answer.")

@@ -2,15 +2,28 @@
 
 
 import operator
+import sqlite3
 import subprocess
 import sys
 
 import requests
 
-from .utils import SERVER_URL
+from .utils import ANALYTICS_FILE, SERVER_URL, get_datetime_pair
+
+
+def log_to_db(choice):
+    with sqlite3.connect(ANALYTICS_FILE) as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS requirement_log(
+                date TEXT NOT NULL,
+                time INTEGER NOT NULL,
+                name TEXT NOT NULL) STRICT""")
+        conn.execute(
+            "INSERT INTO requirement_log(date,time,name) VALUES (?, ?, ?)",
+            get_datetime_pair() + (choice,),
+        )
+
 
 DMENU_CMD = ["dmenu"] + sys.argv[1:]
-
 
 info = requests.post(SERVER_URL, json={"type": "GetInfo"}).json()
 if info["type"] == "Info":
@@ -35,6 +48,7 @@ if info["type"] == "Info":
             ).json()
             if res["type"] == "Success":
                 print(f"Successfully completed requirement: {choice}")
+                log_to_db(choice)
             else:
                 print(res)
         except StopIteration:
