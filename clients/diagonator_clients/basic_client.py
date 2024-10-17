@@ -4,7 +4,7 @@ import sys
 
 import requests
 
-SERVER_URL = "http://localhost:3000"
+from .utils import SERVER_URL
 
 request_type = None
 if len(sys.argv) == 2:
@@ -12,6 +12,6 @@ if len(sys.argv) == 2:
         request_type = sys.argv[1]
 
 if request_type is None:
-    sys.exit(f"Please specify a request: UnlockTimer, LockTimer, or GetInfo.")
+    sys.exit("Please specify a request: UnlockTimer, LockTimer, or GetInfo.")
 
 print(requests.post(SERVER_URL, json={"type": request_type}).text)

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
 import datetime
+import sqlite3
 import subprocess
 import sys
 
 import requests
 
-SERVER_URL = "http://localhost:3000"
+from .utils import ANALYTICS_FILE, SERVER_URL, get_datetime_pair
 
 if len(sys.argv) < 2:
     sys.exit("Please specify the deactivation duration in seconds.")
@@ -49,5 +50,14 @@ if correct():
             SERVER_URL, json={"type": "Deactivate", "duration": duration}
         ).text
     )
+    if ANALYTICS_FILE is not None:
+        with sqlite3.connect(ANALYTICS_FILE) as conn:
+            conn.execute("""CREATE TABLE deactivate_log(
+                date TEXT NOT NULL,
+                time INTEGER NOT NULL,
+                state TEXT NOT NULL) STRICT""")
+            conn.execute(
+                "INSERT INTO deactivate_log VALUES (?, ?, ?)", get_datetime_pair
+            )
 else:
     print("Incorrect answer.")

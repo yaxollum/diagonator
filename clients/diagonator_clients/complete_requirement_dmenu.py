@@ -2,14 +2,14 @@
 
 
 import operator
-import socket
 import subprocess
 import sys
 
 import requests
 
+from .utils import SERVER_URL
+
 DMENU_CMD = ["dmenu"] + sys.argv[1:]
-SERVER_URL = "http://localhost:3000"
 
 
 info = requests.post(SERVER_URL, json={"type": "GetInfo"}).json()

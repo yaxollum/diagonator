@@ -5,7 +5,8 @@ import sys
 
 import socketio
 
-SERVER_URL = "http://localhost:3000"
+from .utils import SERVER_URL
+
 DIAGONATOR_CMD = ["diagonator"] + sys.argv[1:]
 
 proc = None

@@ -4,7 +4,7 @@ import sys
 
 import requests
 
-SERVER_URL = "http://localhost:3000"
+from .utils import SERVER_URL
 
 if len(sys.argv) != 3:
     sys.exit(
