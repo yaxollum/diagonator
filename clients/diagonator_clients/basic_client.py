@@ -3,9 +3,7 @@
 import sqlite3
 import sys
 
-import requests
-
-from .utils import ANALYTICS_FILE, SERVER_URL, get_datetime_pair
+from .utils import ANALYTICS_FILE, get_datetime_pair, send_request
 
 
 def log_event_to_table(table_name):
@@ -34,7 +32,7 @@ if len(sys.argv) == 2:
 if request_type is None:
     sys.exit("Please specify a request: UnlockTimer, LockTimer, or GetInfo.")
 
-response = requests.post(SERVER_URL, json={"type": request_type}).json()
+response = send_request({"type": request_type})
 print(response)
 
 if response["type"] == "Success":

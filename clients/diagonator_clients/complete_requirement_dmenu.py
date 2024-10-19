@@ -6,9 +6,7 @@ import sqlite3
 import subprocess
 import sys
 
-import requests
-
-from .utils import ANALYTICS_FILE, SERVER_URL, get_datetime_pair
+from .utils import ANALYTICS_FILE, get_datetime_pair, send_request
 
 
 def log_to_db(choice):
@@ -25,7 +23,7 @@ def log_to_db(choice):
 
 DMENU_CMD = ["dmenu"] + sys.argv[1:]
 
-info = requests.post(SERVER_URL, json={"type": "GetInfo"}).json()
+info = send_request({"type": "GetInfo"})
 if info["type"] == "Info":
     requirements = [req for req in info["info"]["requirements"] if not req["complete"]]
     # sort requirements by time in ascending order
@@ -42,10 +40,7 @@ if info["type"] == "Info":
         )
         try:
             choice_req = next(req for req in requirements if req["name"] == choice)
-            res = requests.post(
-                SERVER_URL,
-                json={"type": "CompleteRequirement", "id": choice_req["id"]},
-            ).json()
+            res = send_request({"type": "CompleteRequirement", "id": choice_req["id"]})
             if res["type"] == "Success":
                 print(f"Successfully completed requirement: {choice}")
                 log_to_db(choice)

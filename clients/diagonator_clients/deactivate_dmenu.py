@@ -3,9 +3,7 @@
 import sqlite3
 import sys
 
-import requests
-
-from .utils import ANALYTICS_FILE, SERVER_URL, get_datetime_pair, prompt_dmenu_time
+from .utils import ANALYTICS_FILE, get_datetime_pair, prompt_dmenu_time, send_request
 
 if len(sys.argv) < 2:
     sys.exit("Please specify the deactivation duration in seconds.")
@@ -13,13 +11,9 @@ if len(sys.argv) < 2:
 duration = int(sys.argv[1])
 
 if prompt_dmenu_time(sys.argv[2:]):
-    print(
-        requests.post(
-            SERVER_URL, json={"type": "Deactivate", "duration": duration}
-        ).text
-    )
+    print(send_request({"type": "Deactivate", "duration": duration}))
     if ANALYTICS_FILE is not None:
-        current_state = requests.post(SERVER_URL, json={"type": "GetInfo"}).json()
+        current_state = send_request({"type": "GetInfo"})
         with sqlite3.connect(ANALYTICS_FILE) as conn:
             conn.execute("""CREATE TABLE IF NOT EXISTS deactivate_log(
                 date TEXT NOT NULL,

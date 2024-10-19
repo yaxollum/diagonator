@@ -2,8 +2,15 @@ import datetime
 import os
 import subprocess
 
+import requests
+
 SERVER_URL = os.getenv("DIAGONATOR_SERVER_URL", "http://localhost:3000")
 ANALYTICS_FILE = os.getenv("DIAGONATOR_ANALYTICS_FILE")
+
+
+def send_request(json) -> dict:
+    """Sends a JSON request to the server and returns the decoded JSON response"""
+    return requests.post(SERVER_URL, json=json).json()
 
 
 def get_datetime_pair():
