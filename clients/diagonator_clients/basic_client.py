@@ -16,27 +16,37 @@ def log_event_to_table(table_name):
         )
 
 
-def log_unlock_event():
-    log_event_to_table("unlock_log")
+def unlock_timer():
+    response = send_request({"type": "UnlockTimer"})
+    print(response)
+    if response["type"] == "Success":
+        log_event_to_table("unlock_log")
 
 
-def log_lock_event():
-    log_event_to_table("lock_log")
+def lock_timer():
+    response = send_request({"type": "LockTimer"})
+    print(response)
+    if response["type"] == "Success":
+        log_event_to_table("lock_log")
 
 
-request_type = None
-if len(sys.argv) == 2:
-    if sys.argv[1] in ("UnlockTimer", "LockTimer", "GetInfo"):
-        request_type = sys.argv[1]
+def get_info():
+    print(send_request({"type": "GetInfo"}))
 
-if request_type is None:
+
+def main():
+    if len(sys.argv) == 2:
+        if sys.argv[1] == "UnlockTimer":
+            unlock_timer()
+            return
+        elif sys.argv[1] == "LockTimer":
+            lock_timer()
+            return
+        elif sys.argv[1] == "GetInfo":
+            get_info()
+            return
     sys.exit("Please specify a request: UnlockTimer, LockTimer, or GetInfo.")
 
-response = send_request({"type": request_type})
-print(response)
 
-if response["type"] == "Success":
-    if request_type == "UnlockTimer":
-        log_unlock_event()
-    elif request_type == "LockTimer":
-        log_lock_event()
+if __name__ == "__main__":
+    main()
