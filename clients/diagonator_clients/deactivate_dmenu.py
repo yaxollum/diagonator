@@ -9,7 +9,6 @@ if len(sys.argv) < 2:
 duration = int(sys.argv[1])
 
 if prompt_dmenu_time(sys.argv[2:]):
-    print(send_request({"type": "Deactivate", "duration": duration}))
     if ANALYTICS_FILE is not None:
         current_state = send_request({"type": "GetInfo"})
         with sqlite3.connect(ANALYTICS_FILE) as conn:
@@ -33,5 +32,6 @@ if prompt_dmenu_time(sys.argv[2:]):
                 "INSERT INTO deactivate_log(date,time,state,reason,details) VALUES (?, ?, ?, ?, ?)",
                 (date, time, state, reason, details),
             )
+    print(send_request({"type": "Deactivate", "duration": duration}))
 else:
     print("Incorrect answer.")
