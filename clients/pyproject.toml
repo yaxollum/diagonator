@@ -1,4 +1,4 @@
 [project]
 name = "diagonator_clients"
 version = "0.0.1"
-dependencies = ["python-socketio", "requests"]
+dependencies = ["python-socketio>=5", "requests>=2", "pytest>=8"]
