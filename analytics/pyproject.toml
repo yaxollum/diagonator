@@ -1,0 +1,4 @@
+[project]
+name = "diagonator_analytics"
+version = "0.0.1"
+dependencies = ["flask>=3", "python-dotenv", "matplotlib>=3", "numpy>=2", "pandas>=2"]
