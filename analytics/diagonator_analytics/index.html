@@ -4,15 +4,37 @@
     <title>Diagonator Analytics</title>
   </head>
   <body>
-    <h1>
-      From <span id="from-date"></span> to <span id="to-date"></span> (<span
-        id="days"
-      ></span>
-      days)<button id="edit-button">Edit</button>
-    </h1>
-    <button id="prev-button">Previous</button
-    ><button id="next-button">Next</button>
-    <img src="/api" alt="Histogram of deactivations" />
+    <div id="static-mode">
+      <h1>
+        From <span id="from-date"></span> to <span id="to-date"></span> (<span
+          id="days"
+        ></span>
+        days)
+        <button id="edit-button">Edit</button>
+      </h1>
+      <p>
+        <button id="prev-button">Previous</button>
+        <button id="next-button">Next</button>
+      </p>
+    </div>
+    <div id="edit-mode">
+      <p>
+        <label
+          >Start date:
+          <input id="from-date-input" />
+        </label>
+      </p>
+      <p>
+        <label
+          >End date:
+          <input id="to-date-input" />
+        </label>
+      </p>
+      <p>
+        <button id="save-button">Save</button>
+      </p>
+    </div>
+    <img id="histogram" src="" alt="Histogram of deactivations" />
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.13/dayjs.min.js"
       integrity="sha512-FwNWaxyfy2XlEINoSnZh1JQ5TRRtGow0D6XcmAWmYCRgvqOUTnzCxPc9uF35u5ZEpirk1uhlPVA19tflhvnW1g=="
@@ -36,25 +58,101 @@
         edit_button,
         prev_button,
         next_button,
+        from_date_input,
+        to_date_input,
+        save_button,
+        static_mode_div,
+        edit_mode_div,
+        histogram_elem,
       ] = [
         "from-date",
         "to-date",
         "days",
-        "edit-botton",
+        "edit-button",
         "prev-button",
         "next-button",
+        "from-date-input",
+        "to-date-input",
+        "save-button",
+        "static-mode",
+        "edit-mode",
+        "histogram",
       ].map((x) => document.getElementById(x));
 
       let editing = false;
       let to_date = dayjs();
-      let from_date = to_date.subtract(7, "days");
+      let from_date = to_date.subtract(6, "days");
       const update = () => {
         from_date_elem.textContent = from_date.format("YYYY-MM-DD");
         to_date_elem.textContent = to_date.format("YYYY-MM-DD");
-        days_elem.textContent = to_date.diff(from_date, "days");
+        days_elem.textContent = to_date.diff(from_date, "days") + 1;
+        if (editing) {
+          edit_mode_div.hidden = false;
+          static_mode_div.hidden = true;
+          save_button.disabled = !(from_date.isValid() && to_date.isValid());
+        } else {
+          edit_mode_div.hidden = true;
+          static_mode_div.hidden = false;
+        }
+      };
+      const update_img = () => {
+        histogram_elem.src = `/api?from=${from_date.format(
+          "YYYY-MM-DD"
+        )}&to=${to_date.format("YYYY-MM-DD")}`;
       };
       update();
-      //to_date.textContent = "world";
+      update_img();
+
+      edit_button.onclick = () => {
+        editing = true;
+        from_date_input.value = from_date.format("YYYY-MM-DD");
+        to_date_input.value = to_date.format("YYYY-MM-DD");
+        update();
+      };
+      save_button.onclick = () => {
+        editing = false;
+        update();
+        update_img();
+      };
+
+      const prev_period = () => {
+        let period = to_date.diff(from_date, "days") + 1;
+        from_date = from_date.subtract(period, "days");
+        to_date = to_date.subtract(period, "days");
+        update();
+        update_img();
+      };
+      const next_period = () => {
+        let period = to_date.diff(from_date, "days") + 1;
+        from_date = from_date.add(period, "days");
+        to_date = to_date.add(period, "days");
+        update();
+        update_img();
+      };
+
+      prev_button.onclick = prev_period;
+      next_button.onclick = next_period;
+
+      from_date_input.oninput = (e) => {
+        from_date = dayjs(e.target.value, "YYYY-MM-DD");
+        update();
+      };
+      to_date_input.oninput = (e) => {
+        to_date = dayjs(e.target.value, "YYYY-MM-DD");
+        update();
+      };
+
+      document.addEventListener("keydown", (e) => {
+        if (!editing) {
+          if (e.key == "ArrowRight") {
+            e.preventDefault();
+            next_period();
+          } else if (e.key == "ArrowLeft") {
+            e.preventDefault();
+            prev_period();
+          }
+        }
+      });
     </script>
   </body>
 </html>

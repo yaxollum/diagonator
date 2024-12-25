@@ -5,7 +5,7 @@ from io import BytesIO
 import matplotlib.style
 import numpy as np
 import pandas as pd
-from flask import Flask, send_file
+from flask import Flask, request, send_file
 from matplotlib.figure import Figure
 
 app = Flask(__name__)
@@ -20,8 +20,19 @@ def index():
 
 @app.route("/api")
 def api():
+    from_date = request.args.get("from")
+    to_date = request.args.get("to")
+    if from_date is None:
+        return "Missing 'from' parameter", 400
+    elif to_date is None:
+        return "Missing 'to' parameter", 400
+
     with sqlite3.connect(ANALYTICS_FILE) as conn:
-        data = pd.read_sql_query("SELECT * from deactivate_log", conn)
+        data = pd.read_sql_query(
+            "SELECT * FROM deactivate_log WHERE date >= ? AND date <= ?",
+            conn,
+            params=(from_date, to_date),
+        )
 
     ul = data["state"] == "Unlockable"
     rm = (data["reason"] == "RequirementNotMet") & (~ul)
