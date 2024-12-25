@@ -1,4 +1,3 @@
-import base64
 import os
 import sqlite3
 from io import BytesIO
@@ -6,7 +5,7 @@ from io import BytesIO
 import matplotlib.style
 import numpy as np
 import pandas as pd
-from flask import Flask
+from flask import Flask, send_file
 from matplotlib.figure import Figure
 
 app = Flask(__name__)
@@ -15,7 +14,12 @@ ANALYTICS_FILE = os.getenv("DIAGONATOR_ANALYTICS_FILE")
 
 
 @app.route("/")
-def hello():
+def index():
+    return send_file("index.html")
+
+
+@app.route("/api")
+def api():
     with sqlite3.connect(ANALYTICS_FILE) as conn:
         data = pd.read_sql_query("SELECT * from deactivate_log", conn)
 
@@ -48,5 +52,5 @@ def hello():
 
     buf = BytesIO()
     fig.savefig(buf, format="png")
-    encoded = base64.b64encode(buf.getbuffer()).decode("ascii")
-    return f"<img src='data:image/png;base64,{encoded}'/>"
+    buf.seek(0)
+    return send_file(buf, download_name="graph.png", mimetype="image/png")
