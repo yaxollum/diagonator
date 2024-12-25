@@ -1,10 +1,60 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <title>Diagonator Analytics</title>
   </head>
   <body>
-    <h1>Hello</h1>
-    <img src="/api" />
+    <h1>
+      From <span id="from-date"></span> to <span id="to-date"></span> (<span
+        id="days"
+      ></span>
+      days)<button id="edit-button">Edit</button>
+    </h1>
+    <button id="prev-button">Previous</button
+    ><button id="next-button">Next</button>
+    <img src="/api" alt="Histogram of deactivations" />
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.13/dayjs.min.js"
+      integrity="sha512-FwNWaxyfy2XlEINoSnZh1JQ5TRRtGow0D6XcmAWmYCRgvqOUTnzCxPc9uF35u5ZEpirk1uhlPVA19tflhvnW1g=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.13/plugin/customParseFormat.min.js"
+      integrity="sha512-gbA8lsmPRgLdIMTA6HQRiDVn0eqSPP02qn1JaCPvWHGQpfupKy3D7sWnG1vX12aeZ+XZOuO7SIiP2cLXI1kf6Q=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script>
+      "use strict";
+      dayjs.extend(window.dayjs_plugin_customParseFormat);
+
+      let [
+        from_date_elem,
+        to_date_elem,
+        days_elem,
+        edit_button,
+        prev_button,
+        next_button,
+      ] = [
+        "from-date",
+        "to-date",
+        "days",
+        "edit-botton",
+        "prev-button",
+        "next-button",
+      ].map((x) => document.getElementById(x));
+
+      let editing = false;
+      let to_date = dayjs();
+      let from_date = to_date.subtract(7, "days");
+      const update = () => {
+        from_date_elem.textContent = from_date.format("YYYY-MM-DD");
+        to_date_elem.textContent = to_date.format("YYYY-MM-DD");
+        days_elem.textContent = to_date.diff(from_date, "days");
+      };
+      update();
+      //to_date.textContent = "world";
+    </script>
   </body>
 </html>
