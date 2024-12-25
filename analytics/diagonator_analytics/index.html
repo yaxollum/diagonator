@@ -16,6 +16,15 @@
         <button id="prev-button">Previous</button>
         <button id="next-button">Next</button>
       </p>
+      <p>
+        <label
+          >View:
+          <select id="selection">
+            <option value="r">Requirement Data</option>
+            <option value="d">Deactivation Data</option>
+          </select>
+        </label>
+      </p>
     </div>
     <div id="edit-mode">
       <p>
@@ -34,7 +43,7 @@
         <button id="save-button">Save</button>
       </p>
     </div>
-    <img id="histogram" src="" alt="Histogram of deactivations" />
+    <img id="histogram" src="" alt="Graph of data" />
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.13/dayjs.min.js"
       integrity="sha512-FwNWaxyfy2XlEINoSnZh1JQ5TRRtGow0D6XcmAWmYCRgvqOUTnzCxPc9uF35u5ZEpirk1uhlPVA19tflhvnW1g=="
@@ -64,6 +73,7 @@
         static_mode_div,
         edit_mode_div,
         histogram_elem,
+        selection,
       ] = [
         "from-date",
         "to-date",
@@ -77,11 +87,12 @@
         "static-mode",
         "edit-mode",
         "histogram",
+        "selection",
       ].map((x) => document.getElementById(x));
 
       let editing = false;
       let to_date = dayjs();
-      let from_date = to_date.subtract(6, "days");
+      let from_date = to_date.subtract(13, "days");
       const update = () => {
         from_date_elem.textContent = from_date.format("YYYY-MM-DD");
         to_date_elem.textContent = to_date.format("YYYY-MM-DD");
@@ -96,9 +107,11 @@
         }
       };
       const update_img = () => {
-        histogram_elem.src = `/api?from=${from_date.format(
+        histogram_elem.src = `/${
+          selection.value == "r" ? "requirement_data" : "deactivation_data"
+        }?from=${from_date.format("YYYY-MM-DD")}&to=${to_date.format(
           "YYYY-MM-DD"
-        )}&to=${to_date.format("YYYY-MM-DD")}`;
+        )}`;
       };
       update();
       update_img();
@@ -153,6 +166,8 @@
           }
         }
       });
+
+      selection.onchange = update_img;
     </script>
   </body>
 </html>
