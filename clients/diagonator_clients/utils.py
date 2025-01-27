@@ -22,9 +22,7 @@ def get_datetime_pair():
     return (now.strftime("%Y-%m-%d"), (now - midnight).seconds)
 
 
-def get_answer(t):
-    """Returns the answer expected by prompt_dmenu_time at time t"""
-
+def get_answer_impl(t, wake_up, bedtime):
     def plural(n: int | str, unit: str):
         if str(n) == "1":
             return f"1 {unit}"
@@ -47,17 +45,22 @@ def get_answer(t):
 
     h = t.hour
     m = t.minute
-    if h < 5 or h >= 23:
-        return f"{time_until(t, 8)} until 08:00 - no more work"
-    elif h >= 21:
-        return f"{time_until(t, 23)} until bedtime - no more work"
-    elif h >= 19:
-        return f"{time_until(t, 23)} until bedtime"
+    if h < wake_up - 3 or h >= bedtime:
+        return f"{time_until(t, wake_up)} until {wake_up:02}:00 - no more work"
+    elif h >= bedtime - 2:
+        return f"{time_until(t, bedtime)} until bedtime - no more work"
+    elif h >= bedtime - 4:
+        return f"{time_until(t, bedtime)} until bedtime"
     else:
         n = -(-(h * 60 + m) // 30)
         h = n // 2
         m = n % 2 * 30
         return f"{h:02}:{m:02}"
+
+
+def get_answer(t):
+    """Returns the answer expected by prompt_dmenu_time at time t"""
+    return get_answer_impl(t, 7, 22)
 
 
 def prompt_dmenu_time(dmenu_options: list[str]) -> bool:
@@ -107,4 +110,4 @@ def prompt_dmenu_time(dmenu_options: list[str]) -> bool:
 )
 def test_get_answer(hm: str, expected: str):
     t = datetime.datetime.strptime(hm, "%H:%M")
-    assert get_answer(t) == expected
+    assert get_answer_impl(t, 8, 23) == expected
