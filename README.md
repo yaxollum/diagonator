@@ -1,4 +1,6 @@
-When you're working in front of a computer, it's easy to get so immersed in the content on your screen that you lose track of time and forget to take breaks. To solve this problem, I created **diagonator**, a tool that reminds you to take breaks by drawing diagonal lines across your entire screen:
+# Diagonator
+
+**Diagonator** is a break-enforcement tool that periodically locks the screen by drawing diagonal lines across it. It is designed to help regulate computer usage by enforcing work/break cycles, time-based locks, and task-based requirements.
 
 ![Screenshot of Diagonator running on Windows](screenshots/windows.png)
 
